@@ -255,3 +255,191 @@ func (s *Store) HasProfile() (bool, error) {
 	md, _, _, err := s.GetProfile()
 	return md != "", err
 }
+
+// ---- sessions / questions / turns
+
+type Session struct {
+	ID         string
+	StartedAt  time.Time
+	EndedAt    *time.Time
+	Mode       string
+	ConfigJSON string
+}
+
+func (s *Store) InsertSession(sess Session) error {
+	var ended *int64
+	if sess.EndedAt != nil {
+		t := sess.EndedAt.Unix()
+		ended = &t
+	}
+	_, err := s.DB.Exec(`INSERT INTO sessions(id,started_at,ended_at,mode,config_json)
+		VALUES(?,?,?,?,?)`,
+		sess.ID, sess.StartedAt.Unix(), ended, sess.Mode, sess.ConfigJSON)
+	return err
+}
+
+func (s *Store) CloseSession(id string, endedAt time.Time) error {
+	_, err := s.DB.Exec(`UPDATE sessions SET ended_at=? WHERE id=?`, endedAt.Unix(), id)
+	return err
+}
+
+type Question struct {
+	ID                string
+	SessionID         string
+	Ord               int
+	Category          string
+	TargetTopic       string
+	TargetELO         int
+	Rationale         string
+	ContextChunksJSON string
+	AskedAt           time.Time
+}
+
+func (s *Store) InsertQuestion(q Question) error {
+	_, err := s.DB.Exec(`INSERT INTO questions(id,session_id,ord,category,target_topic,target_elo,rationale,context_chunks_json,asked_at)
+		VALUES(?,?,?,?,?,?,?,?,?)`,
+		q.ID, q.SessionID, q.Ord, q.Category, q.TargetTopic, q.TargetELO,
+		q.Rationale, q.ContextChunksJSON, q.AskedAt.Unix())
+	return err
+}
+
+type Turn struct {
+	ID         string
+	QuestionID string
+	Ord        int
+	Speaker    string // interviewer | candidate
+	Kind       string // opening | followup | answer
+	Text       string
+	AudioPath  string
+	Ts         time.Time
+}
+
+func (s *Store) InsertTurn(t Turn) error {
+	_, err := s.DB.Exec(`INSERT INTO turns(id,question_id,ord,speaker,kind,text,audio_path,ts)
+		VALUES(?,?,?,?,?,?,?,?)`,
+		t.ID, t.QuestionID, t.Ord, t.Speaker, t.Kind, t.Text, t.AudioPath, t.Ts.Unix())
+	return err
+}
+
+func (s *Store) ListTurnsForQuestion(qID string) ([]Turn, error) {
+	rows, err := s.DB.Query(`SELECT id,question_id,ord,speaker,COALESCE(kind,''),text,COALESCE(audio_path,''),ts
+		FROM turns WHERE question_id=? ORDER BY ord`, qID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Turn
+	for rows.Next() {
+		var t Turn
+		var ts int64
+		if err := rows.Scan(&t.ID, &t.QuestionID, &t.Ord, &t.Speaker, &t.Kind, &t.Text, &t.AudioPath, &ts); err != nil {
+			return nil, err
+		}
+		t.Ts = time.Unix(ts, 0)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// RecentQuestionsWithRatings returns up to limit recent questions joined with judgments (if any).
+type RecentQuestion struct {
+	Tag      string
+	Category string
+	Rating   int
+	AskedAt  time.Time
+}
+
+func (s *Store) RecentTopics(limit int) ([]RecentQuestion, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := s.DB.Query(`
+		SELECT q.target_topic, q.category, COALESCE(j.rating, 0), q.asked_at
+		FROM questions q
+		LEFT JOIN judgments j ON j.question_id = q.id
+		ORDER BY q.asked_at DESC
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RecentQuestion
+	for rows.Next() {
+		var r RecentQuestion
+		var ts int64
+		if err := rows.Scan(&r.Tag, &r.Category, &r.Rating, &ts); err != nil {
+			return nil, err
+		}
+		r.AskedAt = time.Unix(ts, 0)
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+type WeakestTopic struct {
+	Tag        string
+	Hits       int
+	MeanRating float64
+}
+
+func (s *Store) WeakestTopics(limit int) ([]WeakestTopic, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.DB.Query(`
+		SELECT tag, COUNT(*) AS hits, AVG(rating) AS mean
+		FROM topic_hits
+		GROUP BY tag
+		HAVING (mean < 3.5) OR (hits >= 3 AND mean < 4)
+		ORDER BY mean ASC, hits DESC
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []WeakestTopic
+	for rows.Next() {
+		var w WeakestTopic
+		if err := rows.Scan(&w.Tag, &w.Hits, &w.MeanRating); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// ---- ELO
+
+func (s *Store) GetAllELO() (map[string]int, error) {
+	rows, err := s.DB.Query(`SELECT category, rating FROM elo_state`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var cat string
+		var r int
+		if err := rows.Scan(&cat, &r); err != nil {
+			return nil, err
+		}
+		out[cat] = r
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetELO(category string, defaultRating int) (int, error) {
+	var r int
+	err := s.DB.QueryRow(`SELECT rating FROM elo_state WHERE category=?`, category).Scan(&r)
+	if err == sql.ErrNoRows {
+		return defaultRating, nil
+	}
+	return r, err
+}
+
+func (s *Store) UpsertELO(category string, rating int) error {
+	_, err := s.DB.Exec(`INSERT INTO elo_state(category,rating,updated_at) VALUES(?,?,?)
+		ON CONFLICT(category) DO UPDATE SET rating=excluded.rating, updated_at=excluded.updated_at`,
+		category, rating, time.Now().Unix())
+	return err
+}

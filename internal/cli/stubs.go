@@ -37,14 +37,14 @@ func DrillCmd() *cli.Command {
 		Name:  "drill",
 		Usage: "run a drill session",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "voice", Usage: "use mic input via whisper.cpp"},
-			&cli.StringFlag{Name: "category", Usage: "system-design|domain|jd|general"},
+			&cli.BoolFlag{Name: "voice", Usage: "use mic input via whisper.cpp (M9)"},
+			&cli.StringFlag{Name: "category", Usage: "system-design|domain-crypto|domain-ml|domain-solana|jd-specific|general"},
 			&cli.StringFlag{Name: "topic", Usage: "force a topic"},
 			&cli.StringFlag{Name: "jd", Usage: "focus on one JD id"},
 			&cli.IntFlag{Name: "qs", Usage: "number of questions (1-10)", Value: 0},
 			&cli.IntFlag{Name: "difficulty", Usage: "override target ELO"},
 		},
-		Action: stub("drill"),
+		Action: drillAction,
 	}
 }
 
