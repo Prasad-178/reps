@@ -16,6 +16,7 @@ import (
 	"github.com/Prasad-178/reps/internal/llm"
 	"github.com/Prasad-178/reps/internal/rag"
 	"github.com/Prasad-178/reps/internal/store"
+	"github.com/Prasad-178/reps/internal/voice"
 	"github.com/google/uuid"
 )
 
@@ -36,6 +37,7 @@ type Orchestrator struct {
 	Planner  *agents.Planner
 	Iv       *agents.Interviewer
 	Judge    *agents.Judge
+	Voice    *voice.Recorder
 
 	In  io.Reader
 	Out io.Writer
@@ -50,6 +52,7 @@ func New(cfg config.Config, s *store.Store, c *llm.Client) *Orchestrator {
 		Planner:   agents.NewPlanner(c),
 		Iv:        agents.NewInterviewer(c),
 		Judge:     agents.NewJudge(c),
+		Voice:     voice.New(cfg),
 		In:        os.Stdin,
 		Out:       os.Stdout,
 	}
@@ -111,9 +114,27 @@ func (o *Orchestrator) preflight(opt Options) error {
 		return fmt.Errorf("--qs must be in 1..10 (got %d)", opt.Qs)
 	}
 	if opt.Voice {
-		fmt.Fprintln(o.Out, "(--voice ignored in M3; voice mic comes in M9)")
+		if err := o.Voice.Available(); err != nil {
+			fmt.Fprintf(o.Out, "[voice unavailable: %v] — falling back to text input.\n", err)
+		}
 	}
 	return nil
+}
+
+func (o *Orchestrator) readUserAnswer(ctx context.Context, useVoice bool) (string, error) {
+	if !useVoice {
+		return readAnswer(o.In)
+	}
+	if err := o.Voice.Available(); err != nil {
+		fmt.Fprintf(o.Out, "[voice unavailable: %v] — type instead.\n", err)
+		return readAnswer(o.In)
+	}
+	txt, err := o.Voice.RecordAndTranscribe(ctx, o.In, o.Out)
+	if err != nil {
+		fmt.Fprintf(o.Out, "[voice error: %v] — type instead.\n", err)
+		return readAnswer(o.In)
+	}
+	return txt, nil
 }
 
 func (o *Orchestrator) runOneQuestion(
@@ -248,8 +269,12 @@ func (o *Orchestrator) runOneQuestion(
 
 	fmt.Fprintln(o.Out, qText)
 	fmt.Fprintln(o.Out)
-	fmt.Fprintln(o.Out, "(type your answer; finish with /end on a new line, or Ctrl-D)")
-	answer, err := readAnswer(o.In)
+	if opt.Voice {
+		fmt.Fprintln(o.Out, "[voice mode] press Enter to start, Enter again to stop.")
+	} else {
+		fmt.Fprintln(o.Out, "(type your answer; finish with /end on a new line, or Ctrl-D)")
+	}
+	answer, err := o.readUserAnswer(ctx, opt.Voice)
 	if err != nil {
 		return err
 	}
@@ -294,8 +319,12 @@ func (o *Orchestrator) runOneQuestion(
 		// patch the running transcript with the follow-up text for the last exchange
 		transcript.Exchanges[len(transcript.Exchanges)-1].FollowupQ = step.Text
 
-		fmt.Fprintln(o.Out, "(answer; /end on a new line to finish)")
-		ans, err := readAnswer(o.In)
+		if opt.Voice {
+			fmt.Fprintln(o.Out, "[voice mode] press Enter to start, Enter again to stop.")
+		} else {
+			fmt.Fprintln(o.Out, "(answer; /end on a new line to finish)")
+		}
+		ans, err := o.readUserAnswer(ctx, opt.Voice)
 		if err != nil {
 			return err
 		}
