@@ -57,7 +57,7 @@ func HistoryCmd() *cli.Command {
 		Name:  "history",
 		Usage: "recent drills",
 		Flags: []cli.Flag{&cli.IntFlag{Name: "last", Usage: "show last N", Value: 10}},
-		Action: stub("history"),
+		Action: historyAction,
 	}
 }
 
@@ -83,7 +83,7 @@ func ExportCmd() *cli.Command {
 }
 
 func ReplayCmd() *cli.Command {
-	return &cli.Command{Name: "replay", Usage: "re-print a past session", ArgsUsage: "<session-id>", Action: stub("replay")}
+	return &cli.Command{Name: "replay", Usage: "re-print a past session", ArgsUsage: "<session-id>", Action: replayAction}
 }
 
 func ResetCmd() *cli.Command {

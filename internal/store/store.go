@@ -408,6 +408,101 @@ func (s *Store) WeakestTopics(limit int) ([]WeakestTopic, error) {
 	return out, rows.Err()
 }
 
+// ---- history queries
+
+type SessionSummary struct {
+	ID        string
+	StartedAt time.Time
+	EndedAt   *time.Time
+	Mode      string
+	QCount    int
+	MeanRate  float64
+}
+
+func (s *Store) RecentSessions(limit int) ([]SessionSummary, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.DB.Query(`
+		SELECT s.id, s.started_at, s.ended_at, COALESCE(s.mode,''),
+		  (SELECT COUNT(*) FROM questions q WHERE q.session_id = s.id) AS qc,
+		  COALESCE((SELECT AVG(j.rating) FROM judgments j
+		            JOIN questions q ON q.id = j.question_id
+		            WHERE q.session_id = s.id), 0)
+		FROM sessions s
+		ORDER BY s.started_at DESC
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SessionSummary
+	for rows.Next() {
+		var ss SessionSummary
+		var started int64
+		var ended sql.NullInt64
+		if err := rows.Scan(&ss.ID, &started, &ended, &ss.Mode, &ss.QCount, &ss.MeanRate); err != nil {
+			return nil, err
+		}
+		ss.StartedAt = time.Unix(started, 0)
+		if ended.Valid {
+			t := time.Unix(ended.Int64, 0)
+			ss.EndedAt = &t
+		}
+		out = append(out, ss)
+	}
+	return out, rows.Err()
+}
+
+type QuestionWithJudgment struct {
+	Question Question
+	Rating   int
+	HasJ     bool
+	Strengths []string
+	Missed    []string
+	Better    string
+}
+
+func (s *Store) QuestionsBySession(sessionID string) ([]Question, error) {
+	rows, err := s.DB.Query(`SELECT id,session_id,ord,category,target_topic,target_elo,
+		COALESCE(rationale,''),COALESCE(context_chunks_json,''),asked_at
+		FROM questions WHERE session_id=? ORDER BY ord`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Question
+	for rows.Next() {
+		var q Question
+		var asked int64
+		if err := rows.Scan(&q.ID, &q.SessionID, &q.Ord, &q.Category, &q.TargetTopic,
+			&q.TargetELO, &q.Rationale, &q.ContextChunksJSON, &asked); err != nil {
+			return nil, err
+		}
+		q.AskedAt = time.Unix(asked, 0)
+		out = append(out, q)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetJudgment(questionID string) (Judgment, bool, error) {
+	var j Judgment
+	var ts int64
+	err := s.DB.QueryRow(`SELECT question_id,rating,COALESCE(strengths_json,''),COALESCE(missed_json,''),
+		COALESCE(better_sketch,''),COALESCE(reading_json,''),graded_at,COALESCE(model_used,'')
+		FROM judgments WHERE question_id=?`, questionID).Scan(
+		&j.QuestionID, &j.Rating, &j.StrengthsJSON, &j.MissedJSON, &j.BetterSketch,
+		&j.ReadingJSON, &ts, &j.ModelUsed)
+	if err == sql.ErrNoRows {
+		return j, false, nil
+	}
+	if err != nil {
+		return j, false, err
+	}
+	j.GradedAt = time.Unix(ts, 0)
+	return j, true, nil
+}
+
 // ---- judgments + topic hits
 
 type Judgment struct {
