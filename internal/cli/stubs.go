@@ -78,7 +78,7 @@ func ExportCmd() *cli.Command {
 			&cli.BoolFlag{Name: "md"},
 			&cli.BoolFlag{Name: "json"},
 		},
-		Action: stub("export"),
+		Action: exportAction,
 	}
 }
 
@@ -89,13 +89,13 @@ func ReplayCmd() *cli.Command {
 func ResetCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "reset",
-		Usage: "wipe local data",
+		Usage: "wipe local data (requires --yes)",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "yes"},
 			&cli.BoolFlag{Name: "all"},
 			&cli.BoolFlag{Name: "data"},
 			&cli.BoolFlag{Name: "sources"},
 		},
-		Action: stub("reset"),
+		Action: resetAction,
 	}
 }
