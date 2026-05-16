@@ -14,17 +14,20 @@ func stub(name string) cli.ActionFunc {
 }
 
 func AddCmd() *cli.Command {
+	pasteFlag := &cli.StringFlag{Name: "from-file", Usage: "read pasted content from a file instead of stdin"}
 	return &cli.Command{
 		Name:  "add",
 		Usage: "add a source to your profile (resume, portfolio, github, linkedin, x, jd, note)",
 		Commands: []*cli.Command{
 			{Name: "resume", Usage: "add resume PDF", ArgsUsage: "<path>", Action: addResumeAction},
-			{Name: "portfolio", Usage: "add portfolio URL", ArgsUsage: "<url>", Action: stub("add portfolio")},
+			{Name: "portfolio", Usage: "add portfolio URL", ArgsUsage: "<url>", Action: addPortfolioAction},
 			{Name: "github", Usage: "add GitHub user", ArgsUsage: "<user>", Action: addGitHubAction},
-			{Name: "linkedin", Usage: "add LinkedIn URL or paste", ArgsUsage: "<url|@>", Action: stub("add linkedin")},
-			{Name: "x", Usage: "add X handle", ArgsUsage: "<handle>", Action: stub("add x")},
-			{Name: "jd", Usage: "add job description URL", ArgsUsage: "<url>", Action: stub("add jd")},
-			{Name: "note", Usage: "add a markdown note", ArgsUsage: "<path>", Action: stub("add note")},
+			{Name: "linkedin", Usage: "add LinkedIn (paste fallback — site blocks scrapers)",
+				ArgsUsage: "<url|@>", Flags: []cli.Flag{pasteFlag}, Action: addLinkedInAction},
+			{Name: "x", Usage: "add X handle (paste fallback)", ArgsUsage: "<handle>",
+				Flags: []cli.Flag{pasteFlag}, Action: addXAction},
+			{Name: "jd", Usage: "add job description URL", ArgsUsage: "<url>", Action: addJDAction},
+			{Name: "note", Usage: "add a markdown note", ArgsUsage: "<path>", Action: addNoteAction},
 		},
 	}
 }

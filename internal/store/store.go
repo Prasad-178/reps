@@ -192,6 +192,42 @@ func (s *Store) InsertChunk(c Chunk, embedding []float32) error {
 	return tx.Commit()
 }
 
+// ---- jd cards
+
+type JDCard struct {
+	ID       string
+	SourceID string
+	Company  string
+	Role     string
+	CardJSON string
+	Priority int
+}
+
+func (s *Store) InsertJDCard(j JDCard) error {
+	_, err := s.DB.Exec(`INSERT INTO jd_cards(id,source_id,company,role,card_json,priority)
+		VALUES(?,?,?,?,?,?)`,
+		j.ID, j.SourceID, j.Company, j.Role, j.CardJSON, j.Priority)
+	return err
+}
+
+func (s *Store) ListJDCards() ([]JDCard, error) {
+	rows, err := s.DB.Query(`SELECT id,source_id,COALESCE(company,''),COALESCE(role,''),card_json,priority
+		FROM jd_cards ORDER BY priority DESC, rowid DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []JDCard
+	for rows.Next() {
+		var j JDCard
+		if err := rows.Scan(&j.ID, &j.SourceID, &j.Company, &j.Role, &j.CardJSON, &j.Priority); err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
 // ---- profile
 
 func (s *Store) UpsertProfile(markdown, model string) error {
