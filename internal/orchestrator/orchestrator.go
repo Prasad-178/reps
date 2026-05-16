@@ -12,6 +12,7 @@ import (
 
 	"github.com/Prasad-178/reps/internal/agents"
 	"github.com/Prasad-178/reps/internal/config"
+	"github.com/Prasad-178/reps/internal/elo"
 	"github.com/Prasad-178/reps/internal/llm"
 	"github.com/Prasad-178/reps/internal/rag"
 	"github.com/Prasad-178/reps/internal/store"
@@ -324,6 +325,30 @@ func (o *Orchestrator) runOneQuestion(
 		fmt.Fprintf(o.Out, "  persist judgment failed: %v\n", err)
 	}
 	renderJudgment(o.Out, verdict)
+	if err := o.applyELO(decision, verdict.Rating, qID); err != nil {
+		fmt.Fprintf(o.Out, "  ELO update failed: %v\n", err)
+	}
+	return nil
+}
+
+func (o *Orchestrator) applyELO(d agents.PlannerDecision, rating int, qID string) error {
+	before, err := o.Store.GetELO(d.Category, o.Cfg.Elo.StartRating)
+	if err != nil {
+		return err
+	}
+	score := elo.RatingToScore(rating)
+	after, delta := elo.Update(before, d.Difficulty, score, o.Cfg.Elo.KFactor)
+	if err := o.Store.UpsertELO(d.Category, after); err != nil {
+		return err
+	}
+	if err := o.Store.InsertELOHistory(d.Category, before, after, delta, qID); err != nil {
+		return err
+	}
+	sign := "+"
+	if delta < 0 {
+		sign = ""
+	}
+	fmt.Fprintf(o.Out, "ELO: %s %d → %d (%s%d)\n\n", d.Category, before, after, sign, delta)
 	return nil
 }
 

@@ -570,3 +570,33 @@ func (s *Store) UpsertELO(category string, rating int) error {
 		category, rating, time.Now().Unix())
 	return err
 }
+
+func (s *Store) InsertELOHistory(category string, before, after, delta int, questionID string) error {
+	var qid any
+	if questionID != "" {
+		qid = questionID
+	}
+	_, err := s.DB.Exec(`INSERT INTO elo_history(category,rating_before,rating_after,delta,question_id,at_ts)
+		VALUES(?,?,?,?,?,?)`, category, before, after, delta, qid, time.Now().Unix())
+	return err
+}
+
+// ELODeltaSince returns the net ELO delta per category over the last `dur`.
+func (s *Store) ELODeltaSince(since time.Time) (map[string]int, error) {
+	rows, err := s.DB.Query(`SELECT category, SUM(delta) FROM elo_history WHERE at_ts >= ? GROUP BY category`,
+		since.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var c string
+		var d int
+		if err := rows.Scan(&c, &d); err != nil {
+			return nil, err
+		}
+		out[c] = d
+	}
+	return out, rows.Err()
+}

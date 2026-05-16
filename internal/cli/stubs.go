@@ -49,7 +49,7 @@ func DrillCmd() *cli.Command {
 }
 
 func StatsCmd() *cli.Command {
-	return &cli.Command{Name: "stats", Usage: "ELO + category breakdown", Action: stub("stats")}
+	return &cli.Command{Name: "stats", Usage: "ELO + category breakdown", Action: statsAction}
 }
 
 func HistoryCmd() *cli.Command {
