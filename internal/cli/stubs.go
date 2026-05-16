@@ -66,7 +66,7 @@ func PlanCmd() *cli.Command {
 		Name:  "plan",
 		Usage: "generate study plan",
 		Flags: []cli.Flag{&cli.IntFlag{Name: "days", Usage: "lookback window", Value: 30}},
-		Action: stub("plan"),
+		Action: planAction,
 	}
 }
 

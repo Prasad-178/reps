@@ -528,6 +528,66 @@ func (s *Store) InsertJudgment(j Judgment) error {
 	return err
 }
 
+type TopicAgg struct {
+	Tag         string
+	Hits        int
+	MeanRating  float64
+	LastSeen    time.Time
+	Categories  []string
+}
+
+func (s *Store) AggregateTopics(since time.Time) ([]TopicAgg, error) {
+	rows, err := s.DB.Query(`
+		SELECT tag, COUNT(*) AS hits, AVG(rating) AS mean, MAX(hit_at) AS last_seen,
+		  GROUP_CONCAT(DISTINCT category)
+		FROM topic_hits
+		WHERE hit_at >= ?
+		GROUP BY tag
+		ORDER BY mean ASC, hits DESC`, since.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TopicAgg
+	for rows.Next() {
+		var t TopicAgg
+		var ts int64
+		var catList string
+		if err := rows.Scan(&t.Tag, &t.Hits, &t.MeanRating, &ts, &catList); err != nil {
+			return nil, err
+		}
+		t.LastSeen = time.Unix(ts, 0)
+		if catList != "" {
+			t.Categories = splitComma(catList)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func splitComma(s string) []string {
+	var out []string
+	cur := ""
+	for _, ch := range s {
+		if ch == ',' {
+			out = append(out, cur)
+			cur = ""
+			continue
+		}
+		cur += string(ch)
+	}
+	if cur != "" {
+		out = append(out, cur)
+	}
+	return out
+}
+
+func (s *Store) InsertPlan(id, markdown string, windowDays int) error {
+	_, err := s.DB.Exec(`INSERT INTO plans(id,generated_at,window_days,markdown) VALUES(?,?,?,?)`,
+		id, time.Now().Unix(), windowDays, markdown)
+	return err
+}
+
 func (s *Store) InsertTopicHit(questionID, tag, category string, rating int) error {
 	_, err := s.DB.Exec(`INSERT INTO topic_hits(question_id,tag,rating,category,hit_at)
 		VALUES(?,?,?,?,?)`,
