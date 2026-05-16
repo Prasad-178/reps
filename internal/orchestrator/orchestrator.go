@@ -38,6 +38,7 @@ type Orchestrator struct {
 	Iv       *agents.Interviewer
 	Judge    *agents.Judge
 	Voice    *voice.Recorder
+	Speaker  *voice.Speaker
 
 	In  io.Reader
 	Out io.Writer
@@ -53,6 +54,7 @@ func New(cfg config.Config, s *store.Store, c *llm.Client) *Orchestrator {
 		Iv:        agents.NewInterviewer(c),
 		Judge:     agents.NewJudge(c),
 		Voice:     voice.New(cfg),
+		Speaker:   voice.NewSpeaker(cfg),
 		In:        os.Stdin,
 		Out:       os.Stdout,
 	}
@@ -268,6 +270,7 @@ func (o *Orchestrator) runOneQuestion(
 	}
 
 	fmt.Fprintln(o.Out, qText)
+	o.Speaker.Speak(qText)
 	fmt.Fprintln(o.Out)
 	if opt.Voice {
 		fmt.Fprintln(o.Out, "[voice mode] press Enter to start, Enter again to stop.")
@@ -309,6 +312,7 @@ func (o *Orchestrator) runOneQuestion(
 			break
 		}
 		fmt.Fprintf(o.Out, "\nFollow-up %d/%d: %s\n", fu+1, maxFollowups, step.Text)
+		o.Speaker.Speak(step.Text)
 		turnOrd++
 		if err := o.Store.InsertTurn(store.Turn{
 			ID: uuid.NewString(), QuestionID: qID, Ord: turnOrd,

@@ -31,6 +31,13 @@ type VoiceConfig struct {
 	WhisperBin   string `toml:"whisper_bin"`
 	WhisperModel string `toml:"whisper_model"`
 	Recorder     string `toml:"recorder"`
+
+	// TTS — pluggable provider for the interviewer to read questions aloud.
+	TTSEnabled  bool   `toml:"tts_enabled"`
+	TTSProvider string `toml:"tts_provider"`  // "say" (macOS, default) | "openai" | "elevenlabs"
+	TTSVoice    string `toml:"tts_voice"`     // provider-specific voice name
+	TTSModel    string `toml:"tts_model"`     // provider-specific model (OpenAI/ElevenLabs)
+	TTSRate     int    `toml:"tts_rate"`      // words/min, used by macOS say
 }
 
 type DrillConfig struct {
@@ -66,6 +73,11 @@ func Default() Config {
 			WhisperBin:   "/opt/homebrew/bin/whisper-cli",
 			WhisperModel: filepath.Join(home, "models", "ggml-base.en.bin"),
 			Recorder:     "sox",
+			TTSEnabled:   false,
+			TTSProvider:  "say",
+			TTSVoice:     "Daniel",
+			TTSModel:     "tts-1",
+			TTSRate:      180,
 		},
 		Drill: DrillConfig{
 			DefaultQs:   3,

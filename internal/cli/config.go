@@ -51,6 +51,11 @@ func printAll(cfg config.Config) error {
 	fmt.Printf("voice.enabled       = %v\n", cfg.Voice.Enabled)
 	fmt.Printf("voice.whisper_bin   = %s\n", cfg.Voice.WhisperBin)
 	fmt.Printf("voice.whisper_model = %s\n", cfg.Voice.WhisperModel)
+	fmt.Printf("voice.tts_enabled   = %v\n", cfg.Voice.TTSEnabled)
+	fmt.Printf("voice.tts_provider  = %s\n", cfg.Voice.TTSProvider)
+	fmt.Printf("voice.tts_voice     = %s\n", cfg.Voice.TTSVoice)
+	fmt.Printf("voice.tts_model     = %s\n", cfg.Voice.TTSModel)
+	fmt.Printf("voice.tts_rate      = %d\n", cfg.Voice.TTSRate)
 	fmt.Printf("drill.default_qs    = %d\n", cfg.Drill.DefaultQs)
 	fmt.Printf("drill.followup_max  = %d\n", cfg.Drill.FollowupMax)
 	fmt.Printf("elo.k_factor        = %d\n", cfg.Elo.KFactor)
@@ -89,6 +94,16 @@ func getKey(cfg config.Config, key string) (string, error) {
 		return cfg.Voice.WhisperBin, nil
 	case "voice.whisper_model":
 		return cfg.Voice.WhisperModel, nil
+	case "voice.tts_enabled":
+		return strconv.FormatBool(cfg.Voice.TTSEnabled), nil
+	case "voice.tts_provider":
+		return cfg.Voice.TTSProvider, nil
+	case "voice.tts_voice":
+		return cfg.Voice.TTSVoice, nil
+	case "voice.tts_model":
+		return cfg.Voice.TTSModel, nil
+	case "voice.tts_rate":
+		return strconv.Itoa(cfg.Voice.TTSRate), nil
 	case "drill.default_qs":
 		return strconv.Itoa(cfg.Drill.DefaultQs), nil
 	case "drill.followup_max":
@@ -127,6 +142,24 @@ func setKey(cfg *config.Config, key, val string) error {
 		cfg.Voice.WhisperBin = val
 	case "voice.whisper_model":
 		cfg.Voice.WhisperModel = val
+	case "voice.tts_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return err
+		}
+		cfg.Voice.TTSEnabled = b
+	case "voice.tts_provider":
+		cfg.Voice.TTSProvider = val
+	case "voice.tts_voice":
+		cfg.Voice.TTSVoice = val
+	case "voice.tts_model":
+		cfg.Voice.TTSModel = val
+	case "voice.tts_rate":
+		n, err := strconv.Atoi(val)
+		if err != nil {
+			return err
+		}
+		cfg.Voice.TTSRate = n
 	case "drill.default_qs":
 		n, err := strconv.Atoi(val)
 		if err != nil {
