@@ -1,0 +1,29 @@
+# Design doc (private)
+DESIGN.md
+
+# Secrets
+.env
+.env.local
+*.key
+
+# Build artifacts
+bin/
+dist/
+/reps
+*.exe
+*.test
+*.out
+coverage.*
+
+# Go
+vendor/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local data
+.reps/
+tmp/
