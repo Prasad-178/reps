@@ -408,6 +408,38 @@ func (s *Store) WeakestTopics(limit int) ([]WeakestTopic, error) {
 	return out, rows.Err()
 }
 
+// ---- judgments + topic hits
+
+type Judgment struct {
+	QuestionID    string
+	Rating        int
+	StrengthsJSON string
+	MissedJSON    string
+	BetterSketch  string
+	ReadingJSON   string
+	GradedAt      time.Time
+	ModelUsed     string
+}
+
+func (s *Store) InsertJudgment(j Judgment) error {
+	_, err := s.DB.Exec(`INSERT INTO judgments(question_id,rating,strengths_json,missed_json,better_sketch,reading_json,graded_at,model_used)
+		VALUES(?,?,?,?,?,?,?,?)
+		ON CONFLICT(question_id) DO UPDATE SET
+		  rating=excluded.rating, strengths_json=excluded.strengths_json, missed_json=excluded.missed_json,
+		  better_sketch=excluded.better_sketch, reading_json=excluded.reading_json,
+		  graded_at=excluded.graded_at, model_used=excluded.model_used`,
+		j.QuestionID, j.Rating, j.StrengthsJSON, j.MissedJSON, j.BetterSketch,
+		j.ReadingJSON, j.GradedAt.Unix(), j.ModelUsed)
+	return err
+}
+
+func (s *Store) InsertTopicHit(questionID, tag, category string, rating int) error {
+	_, err := s.DB.Exec(`INSERT INTO topic_hits(question_id,tag,rating,category,hit_at)
+		VALUES(?,?,?,?,?)`,
+		questionID, tag, rating, category, time.Now().Unix())
+	return err
+}
+
 // ---- ELO
 
 func (s *Store) GetAllELO() (map[string]int, error) {

@@ -1,0 +1,18 @@
+category: jd-specific
+axes:
+  - name: jd_alignment
+    description: Did the answer hit the must-haves the JD names? Don't bend the JD to fit the answer.
+  - name: company_context
+    description: References the company's actual product/scale/mission appropriately.
+  - name: tech_specific
+    description: Uses the JD's named tech precisely (e.g. correct Postgres feature, correct GPU).
+  - name: depth
+    description: Same depth bar as system-design rubric.
+  - name: honesty
+    description: Acknowledges unknowns instead of bluffing. Bluffing is a 1 if caught.
+anchors:
+  "1": "Pitch sounds like it would fit any role. JD specifics ignored or wrong."
+  "3": "Hits the obvious JD musts. Misses 1-2 must-haves or gets a tech detail wrong."
+  "5": "Threads the JD musts through the answer naturally, ties to a specific past project, names a tradeoff the JD's stack actually faces."
+style: |
+  Penalize generic answers heavily. The whole point of this category is JD specificity.

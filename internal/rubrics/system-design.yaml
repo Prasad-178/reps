@@ -1,0 +1,23 @@
+category: system-design
+axes:
+  - name: requirements_clarification
+    description: Asks for scale, SLAs, read/write ratio, constraints before designing.
+  - name: capacity_estimation
+    description: Back-of-envelope QPS, storage, bandwidth, fan-out.
+  - name: high_level_design
+    description: Components, request flow, where data lives, async vs sync paths.
+  - name: data_model
+    description: Schema choices, indexing, sharding/partitioning, hot keys.
+  - name: bottlenecks
+    description: Identifies where the system breaks under load and how to scale.
+  - name: tradeoffs
+    description: Names concrete tradeoffs (consistency vs availability, cost vs latency).
+  - name: failure_modes
+    description: What happens when X dies? Backpressure, retries, idempotency, dedup.
+anchors:
+  "1": "Restated the prompt, hand-wavy boxes, no numbers, no failure thinking."
+  "3": "Reasonable design with one or two clear tradeoffs. Some numbers. Identifies the obvious bottleneck. Misses backpressure / failure paths."
+  "5": "Asks sharp clarifying Qs, drives capacity math, lays out data model with sharding strategy, calls out 2+ failure modes with concrete mitigations, weighs at least one non-obvious tradeoff."
+style: |
+  Be harsh on hand-waving. "We'd add a cache" with no eviction/staleness analysis is a 2.
+  Don't reward effort. Reward depth.

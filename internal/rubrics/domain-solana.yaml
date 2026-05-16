@@ -1,0 +1,20 @@
+category: domain-solana
+axes:
+  - name: account_model
+    description: PDAs, owners, rent, account-size constraints, init vs re-init.
+  - name: instruction_design
+    description: Single-purpose ix, account ordering, CPI vs inline, ix data layout.
+  - name: parallelism_locking
+    description: Knows which accounts get locked, contention hot spots, write-conflict implications.
+  - name: security
+    description: Signer/owner checks, PDA derivation auth, reinit attacks, arithmetic overflow.
+  - name: economics_fees
+    description: Compute units, priority fees, Jito tips, rent-exempt reserves.
+  - name: tooling_realism
+    description: Anchor vs raw, IDL, client integration, indexer pattern.
+anchors:
+  "1": "Confuses Solana with EVM, no PDA reasoning, no signer/owner discussion."
+  "3": "Sound account layout, knows CPI basics, names one security check, vague on fees."
+  "5": "Walks the ix step-by-step, names compute budget, calls out the specific account hot key, identifies one realistic attack and the check that blocks it."
+style: |
+  Be brutal about owner/signer omissions. Most Solana CVEs live there.

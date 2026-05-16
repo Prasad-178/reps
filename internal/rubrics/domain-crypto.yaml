@@ -1,0 +1,20 @@
+category: domain-crypto
+axes:
+  - name: threat_model
+    description: Identifies adversary capabilities, side channels, what is and isn't trusted.
+  - name: primitive_choice
+    description: Picks correct primitive (FHE/MPC/ZK/PIR/HE) for the problem with reasoning.
+  - name: protocol_design
+    description: Round complexity, message flow, what each party learns.
+  - name: parameters_security
+    description: Concrete security levels, lattice params, hash sizes, classical vs PQ.
+  - name: performance_realism
+    description: Knows the actual cost (latency, ciphertext size) of their choices.
+  - name: failure_modes
+    description: Key rotation, bootstrapping cadence, malicious vs semi-honest.
+anchors:
+  "1": "Confuses primitives, hand-waves over what is encrypted vs in the clear."
+  "3": "Names the right primitive, sketches a protocol, knows order-of-magnitude cost. Vague on params and rotation."
+  "5": "Crisp threat model, concrete params (e.g. N=2^15, q=128b), names tradeoffs vs alternatives (FHE vs MPC vs TEE), addresses key lifecycle and side channels."
+style: |
+  Crypto is unforgiving. Score precisely. "Use FHE" without scheme + params is a 2.

@@ -1,0 +1,18 @@
+category: general
+axes:
+  - name: clarity
+    description: Structured answer, signpost the path, no rambling.
+  - name: depth
+    description: Goes beyond surface; explains why, not just what.
+  - name: honesty
+    description: Says "I don't know" cleanly when applicable. Doesn't fabricate.
+  - name: tradeoffs
+    description: Names at least one concrete tradeoff or alternative considered.
+  - name: anchoring
+    description: Grounded in real experience, not platitudes.
+anchors:
+  "1": "Rambling, no structure, generic platitudes ('it depends')."
+  "3": "Clear answer, one tradeoff, some grounding in real work."
+  "5": "Crisp structure (3 points, then conclusion), grounded in a specific past project, names a non-obvious tradeoff, comfortable with the unknown parts."
+style: |
+  Penalize hedging. "I think maybe possibly..." with nothing to back it up is a 2.

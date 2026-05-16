@@ -34,6 +34,7 @@ type Orchestrator struct {
 	Retriever *rag.Retriever
 	Planner  *agents.Planner
 	Iv       *agents.Interviewer
+	Judge    *agents.Judge
 
 	In  io.Reader
 	Out io.Writer
@@ -47,6 +48,7 @@ func New(cfg config.Config, s *store.Store, c *llm.Client) *Orchestrator {
 		Retriever: rag.New(s, c),
 		Planner:   agents.NewPlanner(c),
 		Iv:        agents.NewInterviewer(c),
+		Judge:     agents.NewJudge(c),
 		In:        os.Stdin,
 		Out:       os.Stdout,
 	}
@@ -306,9 +308,85 @@ func (o *Orchestrator) runOneQuestion(
 		transcript.Exchanges = append(transcript.Exchanges, agents.Exchange{Answer: ans})
 	}
 
-	fmt.Fprintf(o.Out, "\n✓ Q%d saved (%d follow-up(s)). (judge in M5)\n\n",
-		ord, len(transcript.Exchanges)-1)
+	fmt.Fprintf(o.Out, "\nJudging... (%d follow-up(s))\n", len(transcript.Exchanges)-1)
+	verdict, err := o.Judge.Grade(ctx, agents.JudgeInput{
+		Profile:    profile,
+		Decision:   decision,
+		Context:    ivContext,
+		Transcript: transcript,
+		JDCard:     jdCardJSON,
+	})
+	if err != nil {
+		fmt.Fprintf(o.Out, "  judge failed: %v (Q saved without grade)\n\n", err)
+		return nil
+	}
+	if err := o.persistJudgment(qID, decision.Category, verdict); err != nil {
+		fmt.Fprintf(o.Out, "  persist judgment failed: %v\n", err)
+	}
+	renderJudgment(o.Out, verdict)
 	return nil
+}
+
+func (o *Orchestrator) persistJudgment(qID, category string, v agents.Judgment) error {
+	strengthsJSON, _ := json.Marshal(v.Strengths)
+	missedJSON, _ := json.Marshal(v.Missed)
+	readingJSON, _ := json.Marshal(v.Reading)
+	if err := o.Store.InsertJudgment(store.Judgment{
+		QuestionID:    qID,
+		Rating:        v.Rating,
+		StrengthsJSON: string(strengthsJSON),
+		MissedJSON:    string(missedJSON),
+		BetterSketch:  v.BetterAnswerSketch,
+		ReadingJSON:   string(readingJSON),
+		GradedAt:      time.Now(),
+		ModelUsed:     o.Client.JudgeModel,
+	}); err != nil {
+		return err
+	}
+	for _, tag := range v.TopicTags {
+		if err := o.Store.InsertTopicHit(qID, tag, category, v.Rating); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderJudgment(w io.Writer, v agents.Judgment) {
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Rating: %d/5\n", v.Rating)
+	if len(v.Strengths) > 0 {
+		fmt.Fprintln(w, "Strengths:")
+		for _, s := range v.Strengths {
+			fmt.Fprintf(w, "  • %s\n", s)
+		}
+	}
+	if len(v.Missed) > 0 {
+		fmt.Fprintln(w, "Missed:")
+		for _, s := range v.Missed {
+			fmt.Fprintf(w, "  • %s\n", s)
+		}
+	}
+	if v.BetterAnswerSketch != "" {
+		fmt.Fprintln(w, "Better answer sketch:")
+		fmt.Fprintf(w, "  %s\n", v.BetterAnswerSketch)
+	}
+	if len(v.Reading) > 0 {
+		fmt.Fprintln(w, "Reading:")
+		for _, r := range v.Reading {
+			line := "  • " + r.Topic
+			if r.Why != "" {
+				line += " — " + r.Why
+			}
+			if r.URL != "" {
+				line += " [" + r.URL + "]"
+			}
+			fmt.Fprintln(w, line)
+		}
+	}
+	if len(v.TopicTags) > 0 {
+		fmt.Fprintf(w, "Topic tags: %s\n", strings.Join(v.TopicTags, ", "))
+	}
+	fmt.Fprintln(w)
 }
 
 func hitsToRefs(hits []rag.Chunk) []map[string]any {

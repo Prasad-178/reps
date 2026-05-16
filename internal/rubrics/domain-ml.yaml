@@ -1,0 +1,20 @@
+category: domain-ml
+axes:
+  - name: problem_framing
+    description: Loss, labels, eval metric, baseline before model choice.
+  - name: data_realism
+    description: Distribution, leakage, drift, labeling cost.
+  - name: model_choice
+    description: Matches model class to problem; doesn't reach for the trendy one.
+  - name: training_practicalities
+    description: Batch size, optimizer, LR schedule, mixed precision, distributed concerns.
+  - name: inference_economics
+    description: Latency budget, memory, throughput, quantization, batching.
+  - name: failure_modes
+    description: Overfitting, distribution shift, hallucination, calibration.
+anchors:
+  "1": "Jumps to 'fine-tune an LLM' without defining the metric or baseline."
+  "3": "Sensible baseline + one model choice with rough numbers. Misses inference cost or drift."
+  "5": "Walks from metric → baseline → model → eval plan, names concrete latency/cost targets, identifies the most likely failure mode and a monitoring strategy."
+style: |
+  Don't reward LLM-everywhere reflexes. A logistic regression baseline beats a vague RAG pitch.
