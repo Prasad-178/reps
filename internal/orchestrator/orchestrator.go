@@ -245,19 +245,69 @@ func (o *Orchestrator) runOneQuestion(
 
 	fmt.Fprintln(o.Out, qText)
 	fmt.Fprintln(o.Out)
-	fmt.Fprintln(o.Out, "(type your answer; end with a blank line then Ctrl-D, or just Ctrl-D for empty)")
+	fmt.Fprintln(o.Out, "(type your answer; finish with /end on a new line, or Ctrl-D)")
 	answer, err := readAnswer(o.In)
 	if err != nil {
 		return err
 	}
+	turnOrd := 1
 	if err := o.Store.InsertTurn(store.Turn{
-		ID: uuid.NewString(), QuestionID: qID, Ord: 1,
+		ID: uuid.NewString(), QuestionID: qID, Ord: turnOrd,
 		Speaker: "candidate", Kind: "answer", Text: answer, Ts: time.Now(),
 	}); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(o.Out, "\n✓ Q%d saved. (follow-ups in M4, judge in M5)\n\n", ord)
+	transcript := agents.Transcript{
+		OpeningQ:  qText,
+		Exchanges: []agents.Exchange{{Answer: answer}},
+	}
+	maxFollowups := o.Cfg.Drill.FollowupMax
+	if maxFollowups <= 0 {
+		maxFollowups = 3
+	}
+	for fu := 0; fu < maxFollowups; fu++ {
+		remaining := maxFollowups - fu
+		step, err := o.Iv.Step(ctx, agents.InterviewerInput{
+			Profile:  profile,
+			Decision: decision,
+			Context:  ivContext,
+			JDCard:   jdCardJSON,
+		}, transcript, remaining)
+		if err != nil {
+			return fmt.Errorf("interviewer step: %w", err)
+		}
+		if step.Action == "done" {
+			break
+		}
+		fmt.Fprintf(o.Out, "\nFollow-up %d/%d: %s\n", fu+1, maxFollowups, step.Text)
+		turnOrd++
+		if err := o.Store.InsertTurn(store.Turn{
+			ID: uuid.NewString(), QuestionID: qID, Ord: turnOrd,
+			Speaker: "interviewer", Kind: "followup", Text: step.Text, Ts: time.Now(),
+		}); err != nil {
+			return err
+		}
+		// patch the running transcript with the follow-up text for the last exchange
+		transcript.Exchanges[len(transcript.Exchanges)-1].FollowupQ = step.Text
+
+		fmt.Fprintln(o.Out, "(answer; /end on a new line to finish)")
+		ans, err := readAnswer(o.In)
+		if err != nil {
+			return err
+		}
+		turnOrd++
+		if err := o.Store.InsertTurn(store.Turn{
+			ID: uuid.NewString(), QuestionID: qID, Ord: turnOrd,
+			Speaker: "candidate", Kind: "answer", Text: ans, Ts: time.Now(),
+		}); err != nil {
+			return err
+		}
+		transcript.Exchanges = append(transcript.Exchanges, agents.Exchange{Answer: ans})
+	}
+
+	fmt.Fprintf(o.Out, "\n✓ Q%d saved (%d follow-up(s)). (judge in M5)\n\n",
+		ord, len(transcript.Exchanges)-1)
 	return nil
 }
 
@@ -274,17 +324,24 @@ func hitsToRefs(hits []rag.Chunk) []map[string]any {
 	return out
 }
 
+// readAnswer reads lines until EOF, a blank line followed by "/end",
+// or the user just types "/end" on its own line. Empty answers are allowed.
 func readAnswer(r io.Reader) (string, error) {
 	rd := bufio.NewReader(r)
 	var sb strings.Builder
 	for {
 		line, err := rd.ReadString('\n')
+		trimmed := strings.TrimRight(line, "\r\n")
+		if trimmed == "/end" {
+			break
+		}
 		sb.WriteString(line)
 		if err != nil {
 			if err == io.EOF {
-				return strings.TrimRight(sb.String(), "\n"), nil
+				break
 			}
 			return sb.String(), err
 		}
 	}
+	return strings.TrimRight(sb.String(), "\n"), nil
 }
