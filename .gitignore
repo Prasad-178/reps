@@ -27,3 +27,14 @@ vendor/
 # Local data
 .reps/
 tmp/
+
+# Brand-design transient preview (regenerated each time)
+.brand-preview/
+
+# Frontend
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+web/.vercel/
+web/next-env.d.ts
