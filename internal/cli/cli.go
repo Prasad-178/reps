@@ -15,5 +15,6 @@ func Commands() []*cli.Command {
 		ReplayCmd(),
 		ConfigCmd(),
 		ResetCmd(),
+		ServeCmd(),
 	}
 }
