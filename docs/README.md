@@ -38,6 +38,20 @@ The whole flow is one continuous TUI. No env vars to export, no second command t
 - **From source:** `git clone https://github.com/Prasad-178/reps && cd reps && make install`
 - **Homebrew tap:** `brew install repsai/reps` (planned)
 
+### Cutting a release (maintainers)
+
+Tag pushes trigger `.github/workflows/release.yml`, which builds a CGO binary
+on darwin/arm64, darwin/amd64, and linux/amd64 in parallel, then creates a
+GitHub release with one tarball per platform plus `checksums.txt`.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+`scripts/install.sh` immediately resolves the latest release and grabs the
+matching `reps_<v>_<os>_<arch>.tar.gz`.
+
 ### Re-run setup from scratch
 
 ```bash

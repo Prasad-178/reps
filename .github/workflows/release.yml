@@ -1,0 +1,124 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin_arm64
+            runner: macos-14
+            goos: darwin
+            goarch: arm64
+          - target: darwin_amd64
+            runner: macos-13
+            goos: darwin
+            goarch: amd64
+          - target: linux_amd64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Extract version
+        id: ver
+        run: echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '1'
+        run: |
+          mkdir -p dist
+          BIN_NAME=reps
+          LDFLAGS="-s -w -X main.version=${{ steps.ver.outputs.v }} -X main.commit=${GITHUB_SHA::8}"
+          go build -trimpath -ldflags "$LDFLAGS" -o "dist/$BIN_NAME" ./cmd/reps
+          # repack as a tarball matching the installer's expected naming
+          (cd dist && tar -czf "reps_${{ steps.ver.outputs.v }}_${{ matrix.target }}.tar.gz" "$BIN_NAME")
+          ls -la dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reps_${{ matrix.target }}
+          path: dist/reps_${{ steps.ver.outputs.v }}_${{ matrix.target }}.tar.gz
+          retention-days: 1
+
+  release:
+    name: release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: ver
+        run: echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 *.tar.gz | tee checksums.txt
+          ls -la
+
+      - name: Build changelog
+        id: changelog
+        run: |
+          PREV=$(git tag --sort=-v:refname | sed -n '2p')
+          if [ -z "$PREV" ]; then
+            RANGE=$(git rev-list --max-parents=0 HEAD)..HEAD
+          else
+            RANGE="$PREV..HEAD"
+          fi
+          {
+            echo 'body<<EOF'
+            echo "## What changed"
+            echo ""
+            git log "$RANGE" --no-merges --pretty='format:- %s'
+            echo ""
+            echo ""
+            echo "## Install"
+            echo ""
+            echo '```bash'
+            echo 'curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash'
+            echo 'reps init'
+            echo '```'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: reps ${{ steps.ver.outputs.v }}
+          body: ${{ steps.changelog.outputs.body }}
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          draft: false
+          prerelease: false
