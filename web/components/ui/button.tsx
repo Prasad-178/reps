@@ -8,12 +8,12 @@ import { cn } from "@/lib/utils";
 const buttonVariants = cva(
   // base
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium " +
-    "transition-[transform,background-color,color,border-color,opacity] duration-150 " +
+    "transition-[transform,background-color,color,border-color,opacity] duration-[130ms] " +
     "[transition-timing-function:var(--ease-out)] " +
     "active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 " +
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-1 " +
     "focus-visible:ring-offset-background " +
-    "[&_svg]:size-4 [&_svg]:shrink-0",
+    "select-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

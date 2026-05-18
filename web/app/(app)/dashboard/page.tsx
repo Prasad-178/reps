@@ -293,27 +293,31 @@ export default function DashboardPage() {
               </p>
             ) : (
               <ul className="divide-y divide-[var(--border)]">
-                {sessions.data.slice(0, 6).map((s) => (
-                  <li
+                {sessions.data.slice(0, 6).map((s, i) => (
+                  <motion.li
                     key={s.id}
-                    className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 py-2.5 text-sm"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: easeOut, delay: i * 0.04 }}
                   >
                     <Link
                       href={`/replay/${s.id.slice(0, 8)}`}
-                      className="font-mono text-[12px] truncate hover:text-[var(--primary)] transition-colors"
+                      className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 py-2.5 px-2 -mx-2 rounded-md text-sm
+                        transition-colors duration-150 [transition-timing-function:var(--ease-out)]
+                        hover:bg-[color-mix(in_oklch,var(--foreground)_4%,transparent)]"
                     >
-                      {s.id.slice(0, 8)}
+                      <span className="font-mono text-[12px] truncate">{s.id.slice(0, 8)}</span>
+                      <span className="text-[var(--muted-foreground)] text-xs">
+                        {formatRelative(s.started_at)}
+                      </span>
+                      <span className="font-mono text-xs text-[var(--muted-foreground)]">
+                        {s.q_count}Q
+                      </span>
+                      <Badge variant={s.mean_rating >= 3.5 ? "success" : s.mean_rating >= 2.5 ? "warning" : s.mean_rating > 0 ? "danger" : "default"}>
+                        {s.mean_rating > 0 ? s.mean_rating.toFixed(1) : "—"}
+                      </Badge>
                     </Link>
-                    <span className="text-[var(--muted-foreground)] text-xs">
-                      {formatRelative(s.started_at)}
-                    </span>
-                    <span className="font-mono text-xs text-[var(--muted-foreground)]">
-                      {s.q_count}Q
-                    </span>
-                    <Badge variant={s.mean_rating >= 3.5 ? "success" : s.mean_rating >= 2.5 ? "warning" : s.mean_rating > 0 ? "danger" : "default"}>
-                      {s.mean_rating > 0 ? s.mean_rating.toFixed(1) : "—"}
-                    </Badge>
-                  </li>
+                  </motion.li>
                 ))}
               </ul>
             )}

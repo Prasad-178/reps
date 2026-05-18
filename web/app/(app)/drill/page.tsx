@@ -230,14 +230,15 @@ export default function DrillPage() {
               </Card>
             )}
 
-            {/* Verdict */}
+            {/* Verdict — blur-bridge entrance (Emil rule: mask imperfect transitions with subtle blur) */}
             <AnimatePresence>
               {state.verdict && (
                 <motion.div
                   key="verdict"
-                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.35, ease: easeOut }}
+                  initial={{ opacity: 0, y: 8, scale: 0.97, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -4, filter: "blur(4px)" }}
+                  transition={{ duration: 0.32, ease: easeOut }}
                 >
                   <Card>
                     <CardHeader className="flex-row items-center justify-between">
@@ -395,12 +396,7 @@ function liveStatus(state: ReturnType<typeof useDrill>["state"]): string {
 }
 
 function Caret() {
-  return (
-    <span
-      aria-hidden
-      className="inline-block w-[2px] h-[1em] -mb-[2px] ml-0.5 align-middle bg-[var(--primary)] animate-pulse"
-    />
-  );
+  return <span aria-hidden className="caret-blink" />;
 }
 
 function StageList({ state }: { state: ReturnType<typeof useDrill>["state"] }) {

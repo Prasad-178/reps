@@ -62,7 +62,7 @@ export function Agents() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.45, ease: easeOut, delay: i * 0.04 }}
-              className="group relative rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 overflow-hidden"
+              className="group lift relative rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 overflow-hidden"
             >
               {/* hover halo */}
               <div

@@ -128,10 +128,14 @@ export function DashboardPreview() {
                   ["System design", "1,238", "+11", "up"],
                   ["Domain · ML", "1,098", "-14", "down"],
                   ["JD specific", "1,175", "+6", "up"],
-                ].map(([label, value, delta, dir]) => (
-                  <div
+                ].map(([label, value, delta, dir], i) => (
+                  <motion.div
                     key={String(label)}
-                    className="rounded-lg border border-[var(--border)] p-3 bg-[var(--background)]/40"
+                    initial={{ opacity: 0, y: 6 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-60px" }}
+                    transition={{ duration: 0.32, ease: easeOut, delay: i * 0.05 }}
+                    className="lift rounded-lg border border-[var(--border)] p-3 bg-[var(--background)]/40"
                   >
                     <div className="text-[10px] font-mono uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
                       {label}
@@ -147,7 +151,7 @@ export function DashboardPreview() {
                     >
                       {delta} / 7d
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
 

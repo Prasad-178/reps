@@ -121,7 +121,7 @@ function Panel({ panel }: { panel: InsightPanel }) {
   return (
     <div
       className={cn(
-        "rounded-lg border bg-[var(--background)]/60 p-4 h-full flex flex-col gap-2",
+        "lift rounded-lg border bg-[var(--background)]/60 p-4 h-full flex flex-col gap-2",
         SEVERITY_CLASS[panel.severity]
       )}
     >

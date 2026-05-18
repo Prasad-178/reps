@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useRef } from "react";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Terminal } from "lucide-react";
 import Link from "next/link";
@@ -8,13 +9,44 @@ import Link from "next/link";
 const easeOut: [number, number, number, number] = [0.23, 1, 0.32, 1];
 
 export function Hero() {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const mx = useMotionValue(0.5);
+  const my = useMotionValue(0.4);
+  const springX = useSpring(mx, { stiffness: 80, damping: 18 });
+  const springY = useSpring(my, { stiffness: 80, damping: 18 });
+  const orbX = useTransform(springX, (v) => `${v * 100}%`);
+  const orbY = useTransform(springY, (v) => `${v * 100}%`);
+
+  function onMove(e: React.MouseEvent<HTMLElement>) {
+    const r = sectionRef.current?.getBoundingClientRect();
+    if (!r) return;
+    mx.set((e.clientX - r.left) / r.width);
+    my.set((e.clientY - r.top) / r.height);
+  }
+
   return (
-    <section className="relative overflow-hidden">
+    <section
+      ref={sectionRef}
+      onMouseMove={onMove}
+      className="relative overflow-hidden"
+    >
       {/* halo gradient */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{ background: "var(--gradient-bg)" }}
+      />
+      {/* mouse-tracking orb (decorative; springs for natural feel) */}
+      <motion.div
+        aria-hidden
+        className="absolute pointer-events-none size-[520px] -translate-x-1/2 -translate-y-1/2 blur-3xl opacity-50 hidden md:block will-change-transform"
+        style={{
+          left: orbX,
+          top: orbY,
+          background:
+            "radial-gradient(closest-side, color-mix(in oklch, var(--primary) 35%, transparent) 0%, transparent 70%)",
+          transform: "translateZ(0)",
+        }}
       />
       {/* grid */}
       <div aria-hidden className="absolute inset-0 bg-grid bg-grid-fade pointer-events-none" />

@@ -179,3 +179,77 @@ body {
 .bg-grid-fade {
   mask-image: radial-gradient(60% 60% at 50% 30%, black 0%, transparent 80%);
 }
+
+/* ---------------------------------------------------------------
+   Emil Kowalski polish layer
+   --------------------------------------------------------------- */
+
+/* Caret breathing — transition-based (interruptible) instead of keyframes */
+.caret-blink {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin: 0 0 -2px 2px;
+  vertical-align: middle;
+  background: var(--primary);
+  animation: caret-fade 1s ease-in-out infinite alternate;
+}
+@keyframes caret-fade {
+  from { opacity: 0.25; }
+  to   { opacity: 1; }
+}
+
+/* Hover lift — only on devices with real hover. Pointer:fine excludes touch.
+   Use as `.lift` on cards. Press feedback comes from active:scale-[0.97]. */
+@media (hover: hover) and (pointer: fine) {
+  .lift {
+    transition:
+      transform 220ms var(--ease-out),
+      border-color 200ms var(--ease-out),
+      box-shadow 220ms var(--ease-out);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 14px 30px -18px color-mix(in oklch, var(--primary) 30%, transparent),
+      0 2px 0 0 color-mix(in oklch, var(--foreground) 6%, transparent) inset;
+    border-color: color-mix(in oklch, var(--foreground) 14%, var(--border));
+  }
+}
+
+/* Blur-bridge: drop a `data-blur` attribute on a wrapper that's mid-transition
+   to smooth a state crossfade. Pair with opacity for full bridge. */
+[data-blur="enter"] {
+  filter: blur(2px);
+  opacity: 0.7;
+  transition: filter 200ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+[data-blur="enter"][data-blur-done="true"] {
+  filter: blur(0);
+  opacity: 1;
+}
+
+/* Anchor scroll padding (sticky header offset) */
+:where(h1, h2, h3, h4, [id]) {
+  scroll-margin-top: 88px;
+}
+
+/* Reduced-motion: keep colour/opacity transitions for comprehension, remove
+   transforms + parallax + caret pulse. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .caret-blink {
+    animation: none;
+    opacity: 1;
+  }
+  .lift:hover {
+    transform: none;
+  }
+}

@@ -59,7 +59,9 @@ export function How() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.4, ease: easeOut, delay: i * 0.03 }}
-              className="bg-[var(--card)] p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-[120px_1fr_minmax(0,420px)] gap-6 sm:gap-10 items-start"
+              className="bg-[var(--card)] p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-[120px_1fr_minmax(0,420px)] gap-6 sm:gap-10 items-start
+                transition-colors duration-200 [transition-timing-function:var(--ease-out)]
+                hover:bg-[color-mix(in_oklch,var(--card)_88%,var(--foreground)_12%)]"
             >
               <span className="font-mono text-3xl sm:text-4xl text-[color-mix(in_oklch,var(--foreground)_25%,transparent)]">
                 {s.n}

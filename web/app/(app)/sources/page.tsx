@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { PageHeader } from "@/components/app/shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,8 @@ import {
   Trash2, RefreshCcw, Loader2, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const easeOut: [number, number, number, number] = [0.23, 1, 0.32, 1];
 
 type Kind = "resume" | "github" | "portfolio" | "jd" | "linkedin" | "x" | "note";
 
@@ -159,11 +162,16 @@ export default function SourcesPage() {
         )}
 
         <ul className="space-y-2">
-          {list.map((s) => {
+          {list.map((s, i) => {
             const Icon = KIND_ICON[s.kind] ?? FileText;
             return (
-              <li key={s.id}>
-                <Card>
+              <motion.li
+                key={s.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: easeOut, delay: i * 0.04 }}
+              >
+                <Card className="lift">
                   <CardContent className="p-4 flex items-center gap-4">
                     <div className="grid place-items-center size-10 rounded-md bg-[var(--secondary)] text-[var(--foreground)] shrink-0">
                       <Icon className="size-4" />
@@ -191,7 +199,7 @@ export default function SourcesPage() {
                     </Button>
                   </CardContent>
                 </Card>
-              </li>
+              </motion.li>
             );
           })}
         </ul>
