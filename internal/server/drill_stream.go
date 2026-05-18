@@ -229,8 +229,10 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 		}
 
 		emit(flush, "interviewer:thinking", map[string]any{})
-		qText, probe, err := iv.Opening(ctx, agents.InterviewerInput{
+		qText, probe, err := iv.OpeningStream(ctx, agents.InterviewerInput{
 			Profile: profile, Decision: decision, Context: ivContext, JDCard: jdCardJSON,
+		}, func(tok string) {
+			emit(flush, "interviewer:token", map[string]any{"delta": tok})
 		})
 		if err != nil {
 			return fmt.Errorf("interviewer: %w", err)

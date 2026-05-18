@@ -154,8 +154,25 @@ export default function DrillPage() {
             {/* Question + thinking stages */}
             <Card>
               <CardContent className="p-6 space-y-4">
-                {!state.currentText && state.status === "running" && (
+                {!state.currentText && !state.streamingText && state.status === "running" && (
                   <StageList state={state} />
+                )}
+
+                {/* Streaming typewriter — visible while tokens arrive */}
+                {state.streamingText && !state.currentText && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2, ease: easeOut }}
+                  >
+                    <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--primary)] mb-2">
+                      Interviewer
+                    </p>
+                    <p className="text-lg leading-relaxed">
+                      {state.streamingText}
+                      <Caret />
+                    </p>
+                  </motion.div>
                 )}
 
                 <AnimatePresence mode="wait">
@@ -375,6 +392,15 @@ function liveStatus(state: ReturnType<typeof useDrill>["state"]): string {
     case "judge:grading": return "judge grading…";
     default: return "running";
   }
+}
+
+function Caret() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block w-[2px] h-[1em] -mb-[2px] ml-0.5 align-middle bg-[var(--primary)] animate-pulse"
+    />
+  );
 }
 
 function StageList({ state }: { state: ReturnType<typeof useDrill>["state"] }) {

@@ -48,6 +48,35 @@ type StepDecision struct {
 	ProbeTarget string
 }
 
+// OpeningStream streams the opening question text token-by-token via onToken.
+// Returns the full text and a synthesized probe target on completion. This
+// variant uses plain-text completion (no JSON wrapping) so the stream is
+// usable directly in a typewriter UI.
+func (iv *Interviewer) OpeningStream(ctx context.Context, in InterviewerInput, onToken func(string)) (string, string, error) {
+	user := buildInterviewerOpeningPrompt(in) +
+		"\n\nReturn ONLY the question text addressed to the candidate. " +
+		"No JSON, no preface, no labels — the question itself. " +
+		"End with a clear time cue (e.g. 'you have about 5 minutes')."
+	req := llm.ChatRequest{
+		Model: iv.Client.Model,
+		Messages: []llm.Message{
+			{Role: "system", Content: interviewerSystemPrompt + "\n\nNOTE: Plain-text-only output mode."},
+			{Role: "user", Content: user},
+		},
+		Temperature: 0.75,
+		MaxTokens:   500,
+	}
+	full, _, err := iv.Client.ChatStream(ctx, req, onToken)
+	if err != nil {
+		return "", "", err
+	}
+	text := strings.TrimSpace(full)
+	if text == "" {
+		return "", "", fmt.Errorf("interviewer returned empty question")
+	}
+	return text, in.Decision.Topic, nil
+}
+
 // Opening generates the first question for the drill. Returns the question
 // text and the probe_target (what this question is meant to surface).
 func (iv *Interviewer) Opening(ctx context.Context, in InterviewerInput) (string, string, error) {

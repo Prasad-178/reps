@@ -12,6 +12,7 @@ export type DrillEvent =
   | { type: "rag:retrieve" }
   | { type: "interviewer:thinking" }
   | { type: "interviewer:opening"; questionId: string; text: string; context: ContextRef[] }
+  | { type: "interviewer:token"; delta: string }
   | { type: "interviewer:deciding"; followupsRemaining: number }
   | { type: "interviewer:followup"; index: number; total: number; text: string }
   | { type: "interviewer:done_with_question" }
@@ -51,6 +52,8 @@ export type DrillState = {
   totalQuestions?: number;
   currentText?: string;
   followupCount: number;
+  streamingText?: string; // grows as interviewer:token events arrive
+  streaming: boolean;
   decision?: PlannerDecision;
   verdict?: Verdict;
   eloUpdate?: { category: string; before: number; after: number; delta: number };
@@ -70,12 +73,13 @@ export function useDrill() {
     status: "idle",
     events: [],
     followupCount: 0,
+    streaming: false,
   });
   const sourceRef = useRef<EventSource | null>(null);
 
   const start = useCallback((opts: DrillOpts) => {
     sourceRef.current?.close();
-    setState({ status: "running", events: [], followupCount: 0 });
+    setState({ status: "running", events: [], followupCount: 0, streaming: false });
 
     const url = api.drillURL(opts);
     const es = new EventSource(url);
@@ -96,13 +100,21 @@ export function useDrill() {
             next.verdict = undefined;
             next.eloUpdate = undefined;
             next.currentText = undefined;
+            next.streamingText = "";
+            next.streaming = false;
             break;
           case "planner:decision":
             next.decision = ev.decision;
             break;
+          case "interviewer:token":
+            next.streaming = true;
+            next.streamingText = (next.streamingText ?? "") + ev.delta;
+            break;
           case "interviewer:opening":
             next.currentQuestionId = ev.questionId;
             next.currentText = ev.text;
+            next.streaming = false;
+            next.streamingText = "";
             next.status = "awaiting-answer";
             break;
           case "interviewer:followup":
@@ -145,6 +157,9 @@ export function useDrill() {
           case "interviewer:opening":
             ev = { type: "interviewer:opening", questionId: data.question_id, text: data.text, context: data.context || [] };
             break;
+          case "interviewer:token":
+            ev = { type: "interviewer:token", delta: data.delta || "" };
+            break;
           case "interviewer:deciding":
             ev = { type: "interviewer:deciding", followupsRemaining: data.followups_remaining };
             break;
@@ -164,7 +179,7 @@ export function useDrill() {
     [
       "hello", "session", "question:start",
       "planner:thinking", "planner:decision", "rag:retrieve",
-      "interviewer:thinking", "interviewer:opening", "interviewer:deciding",
+      "interviewer:thinking", "interviewer:token", "interviewer:opening", "interviewer:deciding",
       "interviewer:followup", "interviewer:done_with_question",
       "judge:grading", "judge:verdict", "judge:error",
       "elo:update", "question:end", "error", "done",
@@ -194,7 +209,7 @@ export function useDrill() {
 
   const reset = useCallback(() => {
     sourceRef.current?.close();
-    setState({ status: "idle", events: [], followupCount: 0 });
+    setState({ status: "idle", events: [], followupCount: 0, streaming: false });
   }, []);
 
   useEffect(() => {
