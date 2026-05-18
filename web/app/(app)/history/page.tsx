@@ -16,7 +16,7 @@ export default function HistoryPage() {
   return (
     <>
       <PageHeader title="History" subtitle={data ? `${data.length} sessions` : "Loading…"} />
-      <div className="p-6 sm:p-8 max-w-4xl">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
         {loading && (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (

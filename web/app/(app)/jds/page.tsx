@@ -16,7 +16,7 @@ export default function JDsPage() {
         title="Job descriptions"
         subtitle={data ? `${data.length} target roles` : "Loading…"}
       />
-      <div className="p-6 sm:p-8 max-w-4xl space-y-3">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl space-y-3">
         {loading && (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (

@@ -109,7 +109,7 @@ export default function SourcesPage() {
           </div>
         }
       />
-      <div className="p-6 sm:p-8 max-w-4xl space-y-4">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl space-y-4">
         <Card>
           <CardContent className="p-4 flex flex-wrap items-center gap-2">
             <span className="text-xs font-mono uppercase tracking-[0.08em] text-[var(--muted-foreground)] mr-2">

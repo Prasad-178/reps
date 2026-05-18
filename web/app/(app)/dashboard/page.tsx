@@ -96,7 +96,7 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="p-6 sm:p-8 space-y-6 max-w-[1200px]">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1200px]">
         {isEmpty && <EmptyState />}
 
         {/* KPI row */}
@@ -154,7 +154,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Chart + weakest */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_minmax(0,1fr)] gap-3">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>ELO — last 30 days</CardTitle>
