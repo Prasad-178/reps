@@ -57,6 +57,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/drill/{session}/{question}/answer", s.drillAnswer)
 	mux.HandleFunc("POST /api/drill/{session}/{question}/end", s.drillEnd)
 
+	s.ingestRoutes(mux)
+	mux.HandleFunc("GET /api/profile/rebuild/status", s.rebuildStatus)
+
 	return s.withCORS(s.withLog(mux))
 }
 

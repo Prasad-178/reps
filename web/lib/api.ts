@@ -156,4 +156,40 @@ export const api = {
       `/api/drill/${sessionID}/${questionID}/end`,
       { method: "POST" }
     ),
+
+  // ---- ingestion (added in HI-1)
+  addGithub:    (user: string) =>
+    call<{ id: string }>(`/api/sources/github`,    { method: "POST", body: JSON.stringify({ user }) }),
+  addPortfolio: (url: string) =>
+    call<{ id: string }>(`/api/sources/portfolio`, { method: "POST", body: JSON.stringify({ url }) }),
+  addJD: (url: string) =>
+    call<{ id: string }>(`/api/sources/jd`,        { method: "POST", body: JSON.stringify({ url }) }),
+  addLinkedIn: (ref: string, text: string) =>
+    call<{ id: string }>(`/api/sources/linkedin`,  { method: "POST", body: JSON.stringify({ ref, text }) }),
+  addX: (ref: string, text: string) =>
+    call<{ id: string }>(`/api/sources/x`,         { method: "POST", body: JSON.stringify({ ref, text }) }),
+  addNote: (name: string, content: string) =>
+    call<{ id: string }>(`/api/sources/note`,      { method: "POST", body: JSON.stringify({ name, content }) }),
+  addResume: async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${BASE}/api/sources/resume`, { method: "POST", body: fd });
+    if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+    return (await r.json()) as { id: string };
+  },
+  deleteSource: (id: string) =>
+    call<{ ok: true }>(`/api/sources/${id}`, { method: "DELETE" }),
+
+  rebuildProfile: () =>
+    call<RebuildStatus>(`/api/profile/rebuild`, { method: "POST" }),
+  rebuildStatus: () =>
+    call<RebuildStatus>(`/api/profile/rebuild/status`),
+};
+
+export type RebuildStatus = {
+  running: boolean;
+  started_at: number;
+  finished_at: number;
+  error?: string;
+  last_line?: string;
 };
