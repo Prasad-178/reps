@@ -60,6 +60,9 @@ func (s *Server) Routes() http.Handler {
 	s.ingestRoutes(mux)
 	mux.HandleFunc("GET /api/profile/rebuild/status", s.rebuildStatus)
 	mux.HandleFunc("GET /api/insights", s.insights)
+	mux.HandleFunc("GET /api/config", s.getConfig)
+	mux.HandleFunc("PUT /api/config", s.putConfig)
+	mux.HandleFunc("POST /api/config/probe-model", s.probeModel)
 
 	return s.withCORS(s.withLog(mux))
 }

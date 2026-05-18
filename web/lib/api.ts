@@ -187,6 +187,59 @@ export const api = {
 
   insights: (force = false) =>
     call<InsightsResponse>(`/api/insights${force ? "?force=1" : ""}`),
+
+  getConfig:   () => call<ConfigPublic>("/api/config"),
+  patchConfig: (patch: ConfigPatch) =>
+    call<ConfigPublic>("/api/config", { method: "PUT", body: JSON.stringify(patch) }),
+  probeModel:  (model: string) =>
+    call<{ ok: boolean; error?: string }>(
+      "/api/config/probe-model",
+      { method: "POST", body: JSON.stringify({ model }) }
+    ),
+};
+
+export type ConfigPublic = {
+  llm: {
+    provider: string;
+    model: string;
+    embed_model: string;
+    judge_model: string;
+    rerank_model: string;
+    api_key_mask: string;
+  };
+  drill: { default_qs: number; followup_max: number; time_warn_sec: number };
+  elo: { k_factor: number; start_rating: number };
+  voice: {
+    tts_enabled: boolean;
+    tts_provider: string;
+    tts_voice: string;
+    tts_model: string;
+    tts_rate: number;
+  };
+  paths: { home: string };
+};
+
+export type ConfigPatch = {
+  llm?: Partial<{
+    model: string;
+    embed_model: string;
+    judge_model: string;
+    rerank_model: string;
+    api_key: string;
+  }>;
+  drill?: Partial<{
+    default_qs: number;
+    followup_max: number;
+    time_warn_sec: number;
+  }>;
+  elo?: Partial<{ k_factor: number; start_rating: number }>;
+  voice?: Partial<{
+    tts_enabled: boolean;
+    tts_provider: string;
+    tts_voice: string;
+    tts_model: string;
+    tts_rate: number;
+  }>;
 };
 
 export type RebuildStatus = {

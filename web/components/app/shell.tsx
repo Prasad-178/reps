@@ -10,6 +10,7 @@ import {
   Map,
   History,
   User,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,20 +58,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="px-3 py-3 border-t border-[var(--border)]">
-          <Link
-            href="/profile"
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm",
-              "transition-colors duration-150 [transition-timing-function:var(--ease-out)]",
-              pathname.startsWith("/profile")
-                ? "bg-[var(--secondary)] text-foreground"
-                : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-foreground"
-            )}
-          >
-            <User className="size-4 shrink-0" />
-            <span>Profile</span>
-          </Link>
+        <div className="px-3 py-3 border-t border-[var(--border)] space-y-0.5">
+          {[
+            { href: "/profile",  label: "Profile",  icon: User },
+            { href: "/settings", label: "Settings", icon: SettingsIcon },
+          ].map((n) => {
+            const active = pathname === n.href || pathname.startsWith(n.href + "/");
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm",
+                  "transition-colors duration-150 [transition-timing-function:var(--ease-out)]",
+                  active
+                    ? "bg-[var(--secondary)] text-foreground"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-foreground"
+                )}
+              >
+                <n.icon className="size-4 shrink-0" />
+                <span>{n.label}</span>
+              </Link>
+            );
+          })}
         </div>
       </aside>
 
