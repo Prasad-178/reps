@@ -11,24 +11,53 @@ Personalized, agentic interview rehearsal CLI. Theory-only — system design, do
 
 Voice answers via `whisper.cpp`. Text input too. Per-category ELO. Persistent SQLite store.
 
-## Install
-
-Requires Go 1.23+, `pdftotext` (poppler), `gh` (GitHub CLI). Optional: `sox` + `whisper-cli` for voice.
+## Install + setup (two commands)
 
 ```bash
-brew install poppler gh
-gh auth login
-
-git clone https://github.com/Prasad-178/reps && cd reps
-go build -o /usr/local/bin/reps ./cmd/reps
+curl -fsSL https://raw.githubusercontent.com/Prasad-178/reps/main/scripts/install.sh | bash
+reps init
 ```
 
-## Quick start
+The installer drops the binary at `~/.local/bin/reps` (creates the dir, warns
+if it's not on `$PATH`). If no release tarball matches your platform, it
+falls back to `go install` automatically.
+
+`reps init` then walks you through:
+
+1. API key  paste once, validated live against OpenRouter, saved to `~/.reps/.env`
+2. Model    pick a curated default or enter a custom OpenRouter model ID (validated live)
+3. Sources  multi-select (resume / GitHub / portfolio / JDs / LinkedIn / X / notes) — **press SPACE to toggle**, ENTER to confirm
+4. Ingest   spinner per source
+5. Profile  auto chunk + embed + synthesize
+
+The whole flow is one continuous TUI. No env vars to export, no second command to remember.
+
+### Other install methods
+
+- **Go install:** `go install github.com/Prasad-178/reps/cmd/reps@latest`
+- **From source:** `git clone https://github.com/Prasad-178/reps && cd reps && make install`
+- **Homebrew tap:** `brew install repsai/reps` (planned)
+
+### Re-run setup from scratch
 
 ```bash
-export OPENROUTER_API_KEY=sk-or-...
+reps init --reset       # wipes ~/.reps/* and re-runs the wizard
+# or
+make fresh              # same, via the Makefile
+```
 
-reps init
+### Native deps (only needed for the sources you pick)
+
+- `pdftotext` (poppler) — for `resume` source  →  `brew install poppler`
+- `gh` (GitHub CLI)     — for `github` source  →  `brew install gh && gh auth login`
+- `sox` + `whisper-cli` — optional, for `--voice` mic input  →  `./scripts/install-whisper.sh`
+
+The wizard checks for these up front and prints exact install commands if any are missing.
+
+## Manual quick start (skip the wizard)
+
+```bash
+reps init                # or do these manually:
 reps add resume ~/path/to/resume.pdf
 reps add github your-username
 reps add portfolio https://you.dev
