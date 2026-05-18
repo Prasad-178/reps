@@ -6,6 +6,7 @@ import (
 	"os"
 
 	repscli "github.com/Prasad-178/reps/internal/cli"
+	"github.com/Prasad-178/reps/internal/config"
 	"github.com/urfave/cli/v3"
 )
 
@@ -15,6 +16,10 @@ var (
 )
 
 func main() {
+	// Auto-load .env from cwd, $REPS_HOME/.env, or $REPS_ENV_FILE.
+	// Real shell env always wins — this only fills gaps.
+	config.LoadDotenv()
+
 	app := &cli.Command{
 		Name:    "reps",
 		Usage:   "personalized, agentic interview rehearsal CLI",

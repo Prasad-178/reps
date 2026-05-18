@@ -115,10 +115,21 @@ A Next.js frontend lives in `web/`. The Go backend exposes an HTTP API via
 `reps serve` (default `:7777`). They run independently — no embedded SPA, no
 bundled binary inflation.
 
+**Easiest:** drop a `.env` at the repo root and use `make dev`:
+
+```bash
+cp .env.example .env       # then edit and set OPENROUTER_API_KEY
+make dev                   # backend :7777 + frontend :3000, one terminal
+```
+
+The Go binary auto-loads `.env` from the current directory, `$REPS_HOME/.env`, or
+`$REPS_ENV_FILE`. Real shell `export`s always win, so the loader only fills gaps.
+
+If you prefer separate terminals:
+
 ```bash
 # terminal 1 — backend
-export OPENROUTER_API_KEY=sk-or-...
-reps serve
+reps serve                 # reads ./.env automatically
 
 # terminal 2 — frontend (dev)
 cd web && bun install && bun dev
