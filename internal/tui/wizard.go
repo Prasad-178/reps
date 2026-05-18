@@ -1,0 +1,469 @@
+package tui
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/charmbracelet/huh"
+
+	"github.com/Prasad-178/reps/internal/config"
+	"github.com/Prasad-178/reps/internal/ingest"
+	"github.com/Prasad-178/reps/internal/llm"
+	"github.com/Prasad-178/reps/internal/store"
+)
+
+type WizardResult struct {
+	APIKey       string
+	Model        string
+	EmbedModel   string
+	Sources      []SourcePlan
+	SkipRebuild  bool
+}
+
+type SourcePlan struct {
+	Kind string // resume | github | portfolio | jd | linkedin | x | note
+	Ref  string
+	From string // for paste-fallback sources, an optional file path
+}
+
+const totalSteps = 5
+
+// RunInit runs the full onboarding wizard, mutates config + ingests sources,
+// and rebuilds the profile. Returns nil on success.
+func RunInit(ctx context.Context, version string) error {
+	fmt.Println(Banner(version))
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if err := config.EnsureDirs(cfg); err != nil {
+		return err
+	}
+
+	// ---- Step 1: API key
+	fmt.Print(Heading(1, totalSteps, "API key"))
+	apiKey, source := resolveAPIKey(cfg)
+	if apiKey == "" {
+		var entered string
+		err := huh.NewForm(
+			huh.NewGroup(
+				huh.NewNote().
+					Title("OpenRouter API key").
+					Description("Get one at openrouter.ai/keys (free tier covers ~thousands of drills). Saved to ~/.reps/.env so you only enter it once."),
+				huh.NewInput().
+					Title("Paste your key").
+					Placeholder("sk-or-v1-...").
+					EchoMode(huh.EchoModePassword).
+					Validate(func(s string) error {
+						s = strings.TrimSpace(s)
+						if s == "" {
+							return errors.New("required")
+						}
+						if !strings.HasPrefix(s, "sk-or-") {
+							return errors.New("looks wrong — OpenRouter keys start with sk-or-")
+						}
+						return nil
+					}).
+					Value(&entered),
+			),
+		).Run()
+		if err != nil {
+			return wrapAbort(err)
+		}
+		apiKey = strings.TrimSpace(entered)
+		if err := writeEnvKey(cfg, apiKey); err != nil {
+			fmt.Println(Wn.Render(IconWarn+" couldn't save to .env: ") + Dim.Render(err.Error()))
+		} else {
+			fmt.Println(OK.Render(IconOK) + " saved to " + Mono.Render(filepath.Join(cfg.Paths.Home, ".env")))
+		}
+	} else {
+		fmt.Println(OK.Render(IconOK) + " key detected " + Dim.Render("("+source+")"))
+	}
+	cfg.LLM.APIKey = apiKey
+	fmt.Println()
+
+	// ---- Step 2: Model defaults
+	fmt.Print(Heading(2, totalSteps, "Model"))
+	model := cfg.LLM.Model
+	if model == "" {
+		model = "google/gemini-2.0-flash-001"
+	}
+	chosen := model
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Primary model (Planner + Interviewer + Coach)").
+				Description("Cheap defaults. Override any time with `reps config llm.model <id>`.").
+				Options(
+					huh.NewOption("Gemini 2.0 Flash  — cheap, fast (recommended)", "google/gemini-2.0-flash-001"),
+					huh.NewOption("Claude 3.5 Haiku — sharper, ~3× cost", "anthropic/claude-3.5-haiku"),
+					huh.NewOption("GPT-4o mini       — middling", "openai/gpt-4o-mini"),
+					huh.NewOption("Keep current ("+model+")", model),
+				).
+				Value(&chosen),
+		),
+	).Run()
+	if err != nil {
+		return wrapAbort(err)
+	}
+	cfg.LLM.Model = chosen
+	fmt.Println(OK.Render(IconOK) + " primary " + Dim.Render(chosen))
+	fmt.Println()
+
+	// ---- Step 3: Source kinds
+	fmt.Print(Heading(3, totalSteps, "Sources"))
+	var kinds []string
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("What should the agents read?").
+				Description("Pick everything you have. You can add more later via `reps add ...`.").
+				Options(
+					huh.NewOption("Resume PDF", "resume"),
+					huh.NewOption("GitHub username", "github"),
+					huh.NewOption("Portfolio URL", "portfolio"),
+					huh.NewOption("Job description URLs", "jd"),
+					huh.NewOption("LinkedIn paste (URL + you paste body later)", "linkedin"),
+					huh.NewOption("X handle", "x"),
+					huh.NewOption("Markdown note", "note"),
+				).
+				Value(&kinds),
+		),
+	).Run()
+	if err != nil {
+		return wrapAbort(err)
+	}
+	if len(kinds) == 0 {
+		fmt.Println(Wn.Render(IconWarn) + " no sources picked — you can add later with `reps add ...`")
+	}
+	fmt.Println()
+
+	plans, err := collectSourceRefs(kinds)
+	if err != nil {
+		return wrapAbort(err)
+	}
+	checkBinaries(plans)
+
+	// ---- Step 4: Confirm + ingest
+	fmt.Print(Heading(4, totalSteps, "Ingest"))
+	if err := config.Save(cfg); err != nil {
+		return err
+	}
+	if len(plans) == 0 {
+		fmt.Println(Dim.Render("nothing to ingest"))
+	} else {
+		dim := llm.EmbedDim(cfg.LLM.EmbedModel)
+		if dim == 0 {
+			dim = 1536
+		}
+		s, err := store.Open(config.DBPath(cfg), dim)
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		client := llm.New(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.EmbedModel,
+			cfg.LLM.JudgeModel, cfg.LLM.RerankModel)
+		pipe := ingest.NewPipeline(cfg, s, client)
+
+		for _, p := range plans {
+			label := fmt.Sprintf("ingesting %s %s", p.Kind, Dim.Render("("+p.Ref+")"))
+			if err := RunWithSpinner(label, func(ctx context.Context, log func(string)) error {
+				return ingestOne(ctx, pipe, p, log)
+			}); err != nil {
+				fmt.Println(Wn.Render(IconWarn) + " continuing past failed source")
+			}
+		}
+		fmt.Println()
+
+		// ---- Step 5: Profile rebuild
+		fmt.Print(Heading(5, totalSteps, "Profile"))
+		if cfg.LLM.APIKey == "" {
+			fmt.Println(Wn.Render(IconWarn) + " skipping rebuild — no API key")
+		} else {
+			err := RunWithSpinner("synthesizing profile", func(ctx context.Context, log func(string)) error {
+				log("embedding chunks…")
+				if err := pipe.Rebuild(ctx); err != nil {
+					return err
+				}
+				log("done")
+				return nil
+			})
+			if err != nil {
+				fmt.Println(Wn.Render(IconWarn) + " profile rebuild failed — fix with `reps profile --rebuild`")
+			}
+		}
+	}
+	fmt.Println()
+
+	// ---- Final
+	summary := []string{
+		Mono.Render(IconArrow+" config ") + Dim.Render(config.Path()),
+		Mono.Render(IconArrow+" data    ") + Dim.Render(cfg.Paths.Home),
+		Mono.Render(IconArrow+" model   ") + Dim.Render(cfg.LLM.Model),
+		Mono.Render(IconArrow+" sources ") + Dim.Render(fmt.Sprintf("%d ingested", len(plans))),
+	}
+	fmt.Println(Done(summary))
+	return nil
+}
+
+func resolveAPIKey(cfg config.Config) (string, string) {
+	if v := os.Getenv("OPENROUTER_API_KEY"); v != "" {
+		return v, "env: OPENROUTER_API_KEY"
+	}
+	if cfg.LLM.APIKey != "" {
+		return cfg.LLM.APIKey, "config: " + config.Path()
+	}
+	return "", ""
+}
+
+func writeEnvKey(cfg config.Config, key string) error {
+	path := filepath.Join(cfg.Paths.Home, ".env")
+	// preserve any other vars already set there
+	existing := map[string]string{}
+	if b, err := os.ReadFile(path); err == nil {
+		for _, line := range strings.Split(string(b), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			line = strings.TrimPrefix(line, "export ")
+			eq := strings.IndexByte(line, '=')
+			if eq <= 0 {
+				continue
+			}
+			existing[strings.TrimSpace(line[:eq])] = strings.TrimSpace(line[eq+1:])
+		}
+	}
+	existing["OPENROUTER_API_KEY"] = key
+
+	var sb strings.Builder
+	sb.WriteString("# reps — environment. Auto-loaded by every `reps` command.\n")
+	for k, v := range existing {
+		fmt.Fprintf(&sb, "%s=%s\n", k, v)
+	}
+	return os.WriteFile(path, []byte(sb.String()), 0o600)
+}
+
+func collectSourceRefs(kinds []string) ([]SourcePlan, error) {
+	var plans []SourcePlan
+	for _, k := range kinds {
+		switch k {
+		case "resume":
+			plan, err := promptOne("Resume PDF path", "~/Documents/resume.pdf", k, validatePDFPath)
+			if err != nil {
+				return nil, err
+			}
+			plan.Ref = expandPath(plan.Ref)
+			plans = append(plans, plan)
+		case "github":
+			plan, err := promptOne("GitHub username", "Prasad-178", k, validateNonEmpty)
+			if err != nil {
+				return nil, err
+			}
+			plans = append(plans, plan)
+		case "portfolio":
+			plan, err := promptOne("Portfolio URL", "https://prasadjs.me", k, validateURL)
+			if err != nil {
+				return nil, err
+			}
+			plans = append(plans, plan)
+		case "jd":
+			// loop until empty
+			i := 0
+			for {
+				var v string
+				title := "Job description URL"
+				if i > 0 {
+					title = fmt.Sprintf("Another JD URL (blank to finish, %d added)", i)
+				}
+				if err := huh.NewForm(huh.NewGroup(
+					huh.NewInput().Title(title).Placeholder("https://jobs.example.com/staff-eng").Value(&v),
+				)).Run(); err != nil {
+					return nil, wrapAbort(err)
+				}
+				v = strings.TrimSpace(v)
+				if v == "" {
+					break
+				}
+				plans = append(plans, SourcePlan{Kind: "jd", Ref: v})
+				i++
+			}
+		case "linkedin":
+			plan, err := promptOne("LinkedIn URL or @handle", "https://www.linkedin.com/in/you", k, validateNonEmpty)
+			if err != nil {
+				return nil, err
+			}
+			plan.From, err = promptFile("Path to a text/markdown paste of your LinkedIn content (blank to skip — site blocks scrapers)")
+			if err != nil {
+				return nil, err
+			}
+			plans = append(plans, plan)
+		case "x":
+			plan, err := promptOne("X handle", "@you", k, validateNonEmpty)
+			if err != nil {
+				return nil, err
+			}
+			plan.From, err = promptFile("Path to a text paste of recent posts (blank to skip)")
+			if err != nil {
+				return nil, err
+			}
+			plans = append(plans, plan)
+		case "note":
+			plan, err := promptOne("Markdown note path", "~/Documents/notes/about-me.md", k, validatePath)
+			if err != nil {
+				return nil, err
+			}
+			plan.Ref = expandPath(plan.Ref)
+			plans = append(plans, plan)
+		}
+	}
+	return plans, nil
+}
+
+func promptOne(title, placeholder, kind string, validate func(string) error) (SourcePlan, error) {
+	var v string
+	err := huh.NewForm(huh.NewGroup(
+		huh.NewInput().Title(title).Placeholder(placeholder).Validate(validate).Value(&v),
+	)).Run()
+	if err != nil {
+		return SourcePlan{}, wrapAbort(err)
+	}
+	return SourcePlan{Kind: kind, Ref: strings.TrimSpace(v)}, nil
+}
+
+func promptFile(title string) (string, error) {
+	var v string
+	err := huh.NewForm(huh.NewGroup(
+		huh.NewInput().Title(title).Placeholder("/path/to/paste.txt or blank").Value(&v),
+	)).Run()
+	if err != nil {
+		return "", wrapAbort(err)
+	}
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "", nil
+	}
+	return expandPath(v), nil
+}
+
+func ingestOne(ctx context.Context, pipe *ingest.Pipeline, p SourcePlan, log func(string)) error {
+	switch p.Kind {
+	case "resume":
+		log("parsing PDF…")
+		_, err := pipe.IngestResume(ctx, p.Ref)
+		return err
+	case "github":
+		log("listing repos via gh CLI…")
+		_, err := pipe.IngestGitHub(ctx, p.Ref)
+		return err
+	case "portfolio":
+		log("fetching page…")
+		_, err := pipe.IngestPortfolio(ctx, p.Ref)
+		return err
+	case "jd":
+		log("scraping + extracting card…")
+		_, err := pipe.IngestJD(ctx, p.Ref)
+		return err
+	case "linkedin":
+		log("reading paste…")
+		_, err := pipe.IngestLinkedIn(ctx, p.Ref, p.From)
+		return err
+	case "x":
+		log("reading paste…")
+		_, err := pipe.IngestX(ctx, p.Ref, p.From)
+		return err
+	case "note":
+		log("reading note…")
+		_, err := pipe.IngestNote(ctx, p.Ref)
+		return err
+	}
+	return fmt.Errorf("unknown kind %q", p.Kind)
+}
+
+func checkBinaries(plans []SourcePlan) {
+	needs := map[string]string{}
+	for _, p := range plans {
+		switch p.Kind {
+		case "resume":
+			needs["pdftotext"] = "brew install poppler"
+		case "github":
+			needs["gh"] = "brew install gh && gh auth login"
+		}
+	}
+	if len(needs) == 0 {
+		return
+	}
+	missing := []string{}
+	for bin, install := range needs {
+		if _, err := exec.LookPath(bin); err != nil {
+			missing = append(missing, Wn.Render(IconWarn+" missing ")+Mono.Render(bin)+Dim.Render(" — "+install))
+		}
+	}
+	if len(missing) > 0 {
+		fmt.Println(strings.Join(missing, "\n"))
+		fmt.Println()
+	}
+}
+
+// ---- validators
+
+func validateNonEmpty(s string) error {
+	if strings.TrimSpace(s) == "" {
+		return errors.New("required")
+	}
+	return nil
+}
+
+func validateURL(s string) error {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return errors.New("required")
+	}
+	if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
+		return errors.New("URL must start with http(s)://")
+	}
+	return nil
+}
+
+func validatePath(s string) error {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return errors.New("required")
+	}
+	if _, err := os.Stat(expandPath(s)); err != nil {
+		return fmt.Errorf("can't read %s", s)
+	}
+	return nil
+}
+
+func validatePDFPath(s string) error {
+	if err := validatePath(s); err != nil {
+		return err
+	}
+	if !strings.EqualFold(filepath.Ext(s), ".pdf") {
+		return errors.New("must be a .pdf")
+	}
+	return nil
+}
+
+func expandPath(p string) string {
+	if strings.HasPrefix(p, "~/") {
+		if h, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(h, p[2:])
+		}
+	}
+	return p
+}
+
+func wrapAbort(err error) error {
+	if errors.Is(err, huh.ErrUserAborted) {
+		return fmt.Errorf("setup cancelled")
+	}
+	return err
+}
