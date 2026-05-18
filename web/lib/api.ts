@@ -184,6 +184,9 @@ export const api = {
     call<RebuildStatus>(`/api/profile/rebuild`, { method: "POST" }),
   rebuildStatus: () =>
     call<RebuildStatus>(`/api/profile/rebuild/status`),
+
+  insights: (force = false) =>
+    call<InsightsResponse>(`/api/insights${force ? "?force=1" : ""}`),
 };
 
 export type RebuildStatus = {
@@ -192,4 +195,25 @@ export type RebuildStatus = {
   finished_at: number;
   error?: string;
   last_line?: string;
+};
+
+export type InsightsResponse = {
+  summary: string;
+  panels: InsightPanel[];
+  built_at: number;
+  cached: boolean;
+  error?: string;
+};
+
+export type InsightPanel = {
+  id: string;
+  title: string;
+  kind: "headline" | "callout" | "stat-row" | "sparkline" | "tag-cloud" | "list";
+  severity: "good" | "warn" | "bad" | "info";
+  headline: string;
+  body: string;
+  stats?: { label: string; value: string; delta?: number; unit?: string }[];
+  tags?: string[];
+  items?: string[];
+  suggestion?: string;
 };

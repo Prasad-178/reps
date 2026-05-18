@@ -14,6 +14,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { PageHeader } from "@/components/app/shell";
+import { Insights } from "@/components/app/insights";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -261,6 +262,9 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* AI insights */}
+        <Insights />
 
         {/* Recent sessions */}
         <Card>
