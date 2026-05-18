@@ -109,6 +109,35 @@ Defaults to Gemini 2.0 Flash for all four agents. One 3-question drill ≈ $0.00
 ./scripts/install-whisper.sh        # installs whisper-cpp + sox via brew, downloads base.en
 ```
 
+## Web UI
+
+A Next.js frontend lives in `web/`. The Go backend exposes an HTTP API via
+`reps serve` (default `:7777`). They run independently — no embedded SPA, no
+bundled binary inflation.
+
+```bash
+# terminal 1 — backend
+export OPENROUTER_API_KEY=sk-or-...
+reps serve
+
+# terminal 2 — frontend (dev)
+cd web && bun install && bun dev
+# open http://localhost:3000
+```
+
+Pages:
+- `/` landing (marketing)
+- `/dashboard` ELO chart, KPIs, weakest topics, recent sessions
+- `/drill` live drill via SSE — Planner → Interviewer → Judge → ELO
+- `/sources` ingested resume / GitHub / portfolio / JDs / notes
+- `/jds` parsed JD cards
+- `/plan` latest study plan (Markdown render)
+- `/history` session list
+- `/replay/[id]` full transcript + judgment per question
+- `/profile` synthesized profile
+
+Brand: `Obsidian Spark` — electric violet on near-black. See [brand.md](../brand.md).
+
 ## How it works
 
 ```
