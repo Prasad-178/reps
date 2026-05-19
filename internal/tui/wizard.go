@@ -413,7 +413,9 @@ func collectSourceRefs(kinds []string) ([]SourcePlan, error) {
 			if err != nil {
 				return nil, err
 			}
-			plan.From, err = capturePasteBody("X (Twitter)", "x", false,
+			// ScrapingDog handles X profiles too — same key as LinkedIn.
+			plan.From, err = capturePasteBody("X (Twitter)", "x",
+				os.Getenv("SCRAPINGDOG_API_KEY") != "",
 				"https://x.com/<your-handle>")
 			if err != nil {
 				return nil, err
@@ -463,9 +465,9 @@ func promptFile(title string) (string, error) {
 func capturePasteBody(label, kind string, hasAutoFetch bool, openURL string) (string, error) {
 	desc := "Open " + openURL + " in your browser, select all (Cmd-A → Cmd-C),\n" +
 		"then paste here. Leave blank to skip this source."
-	if hasAutoFetch && kind == "linkedin" {
-		desc = "You have an auto-fetch key set — leave this blank and the URL will\n" +
-			"be fetched for you. Paste only if you want to override that."
+	if hasAutoFetch {
+		desc = "SCRAPINGDOG_API_KEY is set — leave this blank and the profile will\n" +
+			"be auto-fetched. Paste only if you want to override that."
 	}
 
 	var body string

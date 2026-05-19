@@ -74,6 +74,10 @@ func looksLikeRealProfile(md string) bool {
 }
 
 func (p *Pipeline) saveLinkedInBlob(ref, body, via string) (string, error) {
+	return p.saveSourceBlob("linkedin", ref, body, via)
+}
+
+func (p *Pipeline) saveSourceBlob(kind, ref, body, via string) (string, error) {
 	id := uuid.NewString()
 	rawPath := filepath.Join(p.cfg.Paths.Sources, id+".txt")
 	if err := os.WriteFile(rawPath, []byte(body), 0o644); err != nil {
@@ -81,12 +85,25 @@ func (p *Pipeline) saveLinkedInBlob(ref, body, via string) (string, error) {
 	}
 	meta, _ := json.Marshal(map[string]any{"chars": len(body), "via": via})
 	return id, p.store.InsertSource(store.Source{
-		ID: id, Kind: "linkedin", Ref: ref, RawPath: rawPath,
+		ID: id, Kind: kind, Ref: ref, RawPath: rawPath,
 		FetchedAt: time.Now(), MetaJSON: string(meta),
 	})
 }
 
 func (p *Pipeline) IngestX(ctx context.Context, handle, fromFile string) (string, error) {
+	// 1. ScrapingDog X profile API (recommended; 5 credits / profile)
+	if body, err := FetchXProfileScrapingDog(ctx, handle); err == nil {
+		return p.saveSourceBlob("x", handle, body, "scrapingdog-x")
+	} else if !errors.Is(err, ErrNoScrapingDogKey) {
+		fmt.Printf("  scrapingdog x failed: %v — falling back to paste\n", err)
+	}
+
+	// 2. File / piped stdin paste
+	if fromFile != "" || isStdinPiped() {
+		return p.ingestPaste(ctx, "x", handle, fromFile)
+	}
+
+	// 3. Last resort: prompt for paste
 	return p.ingestPaste(ctx, "x", handle, fromFile)
 }
 

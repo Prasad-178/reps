@@ -68,6 +68,165 @@ func FetchLinkedInScrapingDog(ctx context.Context, profileURL string) (string, e
 
 var ErrNoScrapingDogKey = fmt.Errorf("SCRAPINGDOG_API_KEY not set")
 
+// FetchXProfileScrapingDog pulls an X (Twitter) profile via ScrapingDog.
+// Endpoint: https://api.scrapingdog.com/x/profile?api_key=…&profileId=<handle>
+// Cost: 5 credits per profile.
+//
+// Returns ErrNoScrapingDogKey when the env var is unset.
+func FetchXProfileScrapingDog(ctx context.Context, handleOrURL string) (string, error) {
+	key := strings.TrimSpace(os.Getenv("SCRAPINGDOG_API_KEY"))
+	if key == "" {
+		return "", ErrNoScrapingDogKey
+	}
+	handle := xHandle(handleOrURL)
+	if handle == "" {
+		return "", fmt.Errorf("can't extract X handle from %q", handleOrURL)
+	}
+
+	q := url.Values{}
+	q.Set("api_key", key)
+	q.Set("profileId", handle)
+	endpoint := "https://api.scrapingdog.com/x/profile?" + q.Encode()
+
+	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(cctx, "GET", endpoint, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
+
+	switch {
+	case resp.StatusCode == 200:
+		return scrapingDogXToMarkdown(handle, body), nil
+	case resp.StatusCode == 401 || resp.StatusCode == 403:
+		return "", fmt.Errorf("scrapingdog auth failed (%d) — check SCRAPINGDOG_API_KEY", resp.StatusCode)
+	case resp.StatusCode == 402:
+		return "", fmt.Errorf("scrapingdog: out of credits")
+	default:
+		return "", fmt.Errorf("scrapingdog x/profile http %d: %s", resp.StatusCode, snip(string(body), 200))
+	}
+}
+
+// xHandle pulls the handle from any of:
+//
+//	@prasadjs178
+//	prasadjs178
+//	https://x.com/prasadjs178
+//	https://twitter.com/prasadjs178/status/123
+func xHandle(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "@")
+	if raw == "" {
+		return ""
+	}
+	if !strings.Contains(raw, "/") {
+		return raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return ""
+	}
+	return parts[0]
+}
+
+func scrapingDogXToMarkdown(handle string, raw []byte) string {
+	var sb strings.Builder
+	var top map[string]any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		// Couldn't decode — surface raw for the LLM.
+		fmt.Fprintf(&sb, "_Source: x.com/%s (via ScrapingDog)_\n\n```\n", handle)
+		sb.Write(raw)
+		sb.WriteString("\n```\n")
+		return sb.String()
+	}
+	u, _ := top["user"].(map[string]any)
+	if u == nil {
+		u = top // some responses are flat
+	}
+
+	name := firstString(u, "profile_name", "name")
+	bio := firstString(u, "description", "bio")
+	loc := firstString(u, "location")
+	verified, _ := u["is_blue_verified"].(bool)
+
+	fmt.Fprintf(&sb, "# %s", name)
+	if verified {
+		sb.WriteString(" ✓")
+	}
+	sb.WriteString("\n")
+	fmt.Fprintf(&sb, "@%s\n", handle)
+	fmt.Fprintf(&sb, "_Source: https://x.com/%s (via ScrapingDog)_\n\n", handle)
+
+	if bio != "" {
+		sb.WriteString("## Bio\n")
+		sb.WriteString(bio)
+		sb.WriteString("\n\n")
+	}
+
+	if loc != "" {
+		fmt.Fprintf(&sb, "Location: %s\n\n", loc)
+	}
+
+	// metrics
+	type metric struct {
+		Label string
+		Keys  []string
+	}
+	metrics := []metric{
+		{"Followers", []string{"followers_count"}},
+		{"Following", []string{"following_count"}},
+		{"Posts", []string{"statuses_count", "tweets_count"}},
+		{"Likes", []string{"likes_count", "favourites_count"}},
+		{"Media", []string{"media_count"}},
+		{"Listed", []string{"listed_count"}},
+	}
+	hasAny := false
+	for _, m := range metrics {
+		if v := numField(u, m.Keys...); v != "" {
+			if !hasAny {
+				sb.WriteString("## Metrics\n")
+				hasAny = true
+			}
+			fmt.Fprintf(&sb, "- %s: %s\n", m.Label, v)
+		}
+	}
+	if hasAny {
+		sb.WriteString("\n")
+	}
+
+	// always include the raw user JSON so the agent sees fields we didn't map
+	sb.WriteString("## Raw\n```json\n")
+	pretty, _ := json.MarshalIndent(u, "", "  ")
+	sb.Write(pretty)
+	sb.WriteString("\n```\n")
+	return sb.String()
+}
+
+func numField(m map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			switch t := v.(type) {
+			case float64:
+				return fmt.Sprintf("%d", int64(t))
+			case int:
+				return fmt.Sprintf("%d", t)
+			case string:
+				if t != "" {
+					return t
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // linkedInHandle extracts the slug from any of these forms:
 //
 //	https://www.linkedin.com/in/prasadsankarc/
