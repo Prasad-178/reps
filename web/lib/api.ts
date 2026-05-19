@@ -160,8 +160,13 @@ export const api = {
   // ---- ingestion (added in HI-1)
   addGithub:    (user: string) =>
     call<{ id: string }>(`/api/sources/github`,    { method: "POST", body: JSON.stringify({ user }) }),
-  addPortfolio: (url: string) =>
-    call<{ id: string }>(`/api/sources/portfolio`, { method: "POST", body: JSON.stringify({ url }) }),
+  addPortfolio: (ref: string) => {
+    const isURL = /^https?:\/\//i.test(ref);
+    return call<{ id: string }>(`/api/sources/portfolio`, {
+      method: "POST",
+      body: JSON.stringify(isURL ? { url: ref } : { path: ref }),
+    });
+  },
   addJD: (url: string) =>
     call<{ id: string }>(`/api/sources/jd`,        { method: "POST", body: JSON.stringify({ url }) }),
   addLinkedIn: (ref: string, text: string) =>

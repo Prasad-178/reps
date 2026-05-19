@@ -84,12 +84,23 @@ func (s *Server) ingestGithub(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ingestPortfolio(w http.ResponseWriter, r *http.Request) {
-	var body struct{ URL string `json:"url"` }
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil || body.URL == "" {
-		writeErr(w, 400, fmt.Errorf("missing 'url'"))
+	var body struct {
+		URL  string `json:"url"`
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+		writeErr(w, 400, err)
 		return
 	}
-	id, err := s.pipeline().IngestPortfolio(r.Context(), body.URL)
+	ref := body.URL
+	if ref == "" {
+		ref = body.Path
+	}
+	if ref == "" {
+		writeErr(w, 400, fmt.Errorf("require 'url' or 'path'"))
+		return
+	}
+	id, err := s.pipeline().IngestPortfolio(r.Context(), ref)
 	if err != nil {
 		writeErr(w, 500, err)
 		return

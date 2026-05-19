@@ -32,9 +32,9 @@ const KIND_TITLE: Record<Kind, string> = {
 const KIND_DESC: Record<Kind, string> = {
   resume:    "Upload a .pdf. Parsed locally via pdftotext, stored under ~/.reps/sources/.",
   github:    "Lists your non-fork non-archived repos and their READMEs via the gh CLI (needs `gh auth login`).",
-  portfolio: "Headless-Chrome scrape with a plain-HTTP fast path. Strips nav/header/footer.",
-  jd:        "Scrapes the page, then an LLM call extracts company / role / must-haves / tech / culture.",
-  linkedin:  "LinkedIn blocks scrapers — paste the page content here. Used as a normal text source.",
+  portfolio: "URL → crawled via Jina Reader (sitemap.xml + same-origin links, up to 12 pages). Path → walks the folder, reads every .md/.txt/.html/.rst inside.",
+  jd:        "Fetched via Jina Reader (clean markdown). One LLM call then extracts company / role / must-haves / tech / culture.",
+  linkedin:  "If PROXYCURL_API_KEY is set, the profile is fetched via Proxycurl. Otherwise paste the page content (LinkedIn blocks scrapers).",
   x:         "Same as LinkedIn — paste recent posts. We'll use them as profile signal.",
   note:      "Any markdown you want the agents to know about (style notes, side projects, prep notes).",
 };
@@ -129,7 +129,7 @@ export function AddSourceDialog({
                 kind === "github"
                   ? "username (e.g. Prasad-178)"
                   : kind === "portfolio"
-                    ? "https://your-portfolio.dev"
+                    ? "https://your-portfolio.dev  or  /abs/path/to/folder"
                     : "https://jobs.example.com/staff-eng"
               }
             />

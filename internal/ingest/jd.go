@@ -26,7 +26,7 @@ type JDCard struct {
 }
 
 func (p *Pipeline) IngestJD(ctx context.Context, url string) (string, error) {
-	text, err := fetchPage(ctx, url)
+	text, err := ReadURL(ctx, url)
 	if err != nil {
 		return "", fmt.Errorf("fetch %s: %w", url, err)
 	}

@@ -366,10 +366,15 @@ func collectSourceRefs(kinds []string) ([]SourcePlan, error) {
 			}
 			plans = append(plans, plan)
 		case "portfolio":
-			plan, err := promptOne("Portfolio URL", "https://prasadjs.me", k, validateURL)
+			plan, err := promptOne(
+				"Portfolio URL or folder path",
+				"https://you.dev   or   ~/projects/site",
+				k, validatePortfolioRef,
+			)
 			if err != nil {
 				return nil, err
 			}
+			plan.Ref = portfolioExpand(plan.Ref)
 			plans = append(plans, plan)
 		case "jd":
 			i := 0
@@ -595,6 +600,33 @@ func validatePath(s string) error {
 		return fmt.Errorf("can't read %s", s)
 	}
 	return nil
+}
+
+func validatePortfolioRef(s string) error {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return errors.New("required")
+	}
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+		return nil
+	}
+	// treat as path
+	abs := expandPath(s)
+	info, err := os.Stat(abs)
+	if err != nil {
+		return fmt.Errorf("not a URL and path %s doesn't exist", s)
+	}
+	if !info.IsDir() {
+		return errors.New("path must be a directory (folder will be walked recursively)")
+	}
+	return nil
+}
+
+func portfolioExpand(s string) string {
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+		return s
+	}
+	return expandPath(s)
 }
 
 func validatePDFPath(s string) error {

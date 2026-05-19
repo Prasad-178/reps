@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,28 @@ import (
 )
 
 func (p *Pipeline) IngestLinkedIn(ctx context.Context, ref, fromFile string) (string, error) {
+	// If Proxycurl key is set and ref looks like a LinkedIn profile URL,
+	// fetch via the hosted API instead of asking the user to paste.
+	if strings.Contains(ref, "linkedin.com/in/") {
+		body, err := FetchLinkedInProxycurl(ctx, ref)
+		switch {
+		case err == nil:
+			id := uuid.NewString()
+			rawPath := filepath.Join(p.cfg.Paths.Sources, id+".txt")
+			if werr := os.WriteFile(rawPath, []byte(body), 0o644); werr != nil {
+				return "", werr
+			}
+			meta, _ := json.Marshal(map[string]any{"chars": len(body), "via": "proxycurl"})
+			return id, p.store.InsertSource(store.Source{
+				ID: id, Kind: "linkedin", Ref: ref, RawPath: rawPath,
+				FetchedAt: time.Now(), MetaJSON: string(meta),
+			})
+		case errors.Is(err, ErrNoProxycurlKey):
+			// fall through to paste
+		default:
+			return "", err
+		}
+	}
 	return p.ingestPaste(ctx, "linkedin", ref, fromFile)
 }
 
