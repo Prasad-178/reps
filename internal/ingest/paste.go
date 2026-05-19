@@ -16,29 +16,71 @@ import (
 )
 
 func (p *Pipeline) IngestLinkedIn(ctx context.Context, ref, fromFile string) (string, error) {
-	// If Proxycurl key is set and ref looks like a LinkedIn profile URL,
-	// fetch via the hosted API instead of asking the user to paste.
-	if strings.Contains(ref, "linkedin.com/in/") {
+	isLinkedInURL := strings.Contains(ref, "linkedin.com/in/")
+
+	// 1. Proxycurl (best — full structured profile when key is set)
+	if isLinkedInURL {
 		body, err := FetchLinkedInProxycurl(ctx, ref)
 		switch {
 		case err == nil:
-			id := uuid.NewString()
-			rawPath := filepath.Join(p.cfg.Paths.Sources, id+".txt")
-			if werr := os.WriteFile(rawPath, []byte(body), 0o644); werr != nil {
-				return "", werr
-			}
-			meta, _ := json.Marshal(map[string]any{"chars": len(body), "via": "proxycurl"})
-			return id, p.store.InsertSource(store.Source{
-				ID: id, Kind: "linkedin", Ref: ref, RawPath: rawPath,
-				FetchedAt: time.Now(), MetaJSON: string(meta),
-			})
+			return p.saveLinkedInBlob(ref, body, "proxycurl")
 		case errors.Is(err, ErrNoProxycurlKey):
-			// fall through to paste
+			// continue to Jina Reader fallback
 		default:
 			return "", err
 		}
 	}
+
+	// 2. Caller supplied a paste file or piped stdin → use that
+	if fromFile != "" || isStdinPiped() {
+		return p.ingestPaste(ctx, "linkedin", ref, fromFile)
+	}
+
+	// 3. Try Jina Reader for the URL (may or may not get past LinkedIn's
+	//    bot wall — but worth a free attempt before asking the user to paste).
+	if isLinkedInURL {
+		md, jerr := ReadURL(ctx, ref)
+		if jerr == nil && looksLikeRealProfile(md) {
+			return p.saveLinkedInBlob(ref, md, "jina-reader")
+		}
+	}
+
+	// 4. Last resort: ask the user to paste.
 	return p.ingestPaste(ctx, "linkedin", ref, fromFile)
+}
+
+// looksLikeRealProfile rejects login-walls + redirects that come back from
+// Jina when LinkedIn refuses to render the public profile.
+func looksLikeRealProfile(md string) bool {
+	if len(md) < 800 {
+		return false
+	}
+	lower := strings.ToLower(md)
+	for _, bad := range []string{
+		"sign in to view",
+		"join now",
+		"this content isn't available",
+		"the page you’re looking for",
+		"<title>linkedin login",
+	} {
+		if strings.Contains(lower, bad) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Pipeline) saveLinkedInBlob(ref, body, via string) (string, error) {
+	id := uuid.NewString()
+	rawPath := filepath.Join(p.cfg.Paths.Sources, id+".txt")
+	if err := os.WriteFile(rawPath, []byte(body), 0o644); err != nil {
+		return "", err
+	}
+	meta, _ := json.Marshal(map[string]any{"chars": len(body), "via": via})
+	return id, p.store.InsertSource(store.Source{
+		ID: id, Kind: "linkedin", Ref: ref, RawPath: rawPath,
+		FetchedAt: time.Now(), MetaJSON: string(meta),
+	})
 }
 
 func (p *Pipeline) IngestX(ctx context.Context, handle, fromFile string) (string, error) {
@@ -104,7 +146,12 @@ func readPaste(fromFile string) (string, error) {
 		}
 		return string(b), nil
 	}
-	fmt.Println("Paste content below. End with Ctrl-D on a blank line.")
+	fmt.Println("─────────────────────────────────────────────────────────")
+	fmt.Println(" Paste the actual page content below (Cmd-A → Cmd-C on the")
+	fmt.Println(" LinkedIn / X tab, then Cmd-V here). Tip: set PROXYCURL_API_KEY")
+	fmt.Println(" to skip this step in future and have profiles auto-fetched.")
+	fmt.Println(" When done, press ENTER then Ctrl-D on a blank line.")
+	fmt.Println("─────────────────────────────────────────────────────────")
 	b, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", err
