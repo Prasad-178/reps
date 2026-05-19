@@ -22,7 +22,11 @@ import (
 //
 // API: https://nubela.co/proxycurl/docs#people-api-person-profile-endpoint
 func FetchLinkedInProxycurl(ctx context.Context, profileURL string) (string, error) {
+	// Proxycurl rebranded to Enrichlayer; accept either env var name.
 	key := strings.TrimSpace(os.Getenv("PROXYCURL_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("ENRICHLAYER_API_KEY"))
+	}
 	if key == "" {
 		return "", ErrNoProxycurlKey
 	}

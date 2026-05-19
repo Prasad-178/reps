@@ -16,36 +16,39 @@ import (
 )
 
 func (p *Pipeline) IngestLinkedIn(ctx context.Context, ref, fromFile string) (string, error) {
-	isLinkedInURL := strings.Contains(ref, "linkedin.com/in/")
+	looksLikeProfile := strings.Contains(ref, "linkedin.com/in/") ||
+		(!strings.Contains(ref, "/") && !strings.Contains(ref, " "))
 
-	// 1. Proxycurl (best — full structured profile when key is set)
-	if isLinkedInURL {
-		body, err := FetchLinkedInProxycurl(ctx, ref)
-		switch {
-		case err == nil:
+	if looksLikeProfile {
+		// 1. ScrapingDog (recommended; 1000 free credits, simple REST)
+		if body, err := FetchLinkedInScrapingDog(ctx, ref); err == nil {
+			return p.saveLinkedInBlob(ref, body, "scrapingdog")
+		} else if !errors.Is(err, ErrNoScrapingDogKey) {
+			fmt.Printf("  scrapingdog failed: %v — trying next provider\n", err)
+		}
+
+		// 2. Proxycurl / Enrichlayer (legacy, if key is set)
+		if body, err := FetchLinkedInProxycurl(ctx, ref); err == nil {
 			return p.saveLinkedInBlob(ref, body, "proxycurl")
-		case errors.Is(err, ErrNoProxycurlKey):
-			// continue to Jina Reader fallback
-		default:
-			return "", err
+		} else if !errors.Is(err, ErrNoProxycurlKey) {
+			fmt.Printf("  proxycurl failed: %v — trying next provider\n", err)
 		}
 	}
 
-	// 2. Caller supplied a paste file or piped stdin → use that
+	// 3. Caller supplied a paste file or piped stdin → use that
 	if fromFile != "" || isStdinPiped() {
 		return p.ingestPaste(ctx, "linkedin", ref, fromFile)
 	}
 
-	// 3. Try Jina Reader for the URL (may or may not get past LinkedIn's
-	//    bot wall — but worth a free attempt before asking the user to paste).
-	if isLinkedInURL {
+	// 4. Try Jina Reader for the URL (last free attempt before asking to paste)
+	if looksLikeProfile && strings.HasPrefix(ref, "http") {
 		md, jerr := ReadURL(ctx, ref)
 		if jerr == nil && looksLikeRealProfile(md) {
 			return p.saveLinkedInBlob(ref, md, "jina-reader")
 		}
 	}
 
-	// 4. Last resort: ask the user to paste.
+	// 5. Last resort: ask the user to paste.
 	return p.ingestPaste(ctx, "linkedin", ref, fromFile)
 }
 
