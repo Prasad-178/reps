@@ -28,13 +28,20 @@ web: ## Run the Next.js dev server only
 	cd $(WEB_DIR) && bun dev
 
 dev: build ## Run backend + frontend together; auto-loads ./.env
+	@echo "==> freeing :7777 and :3000 if held by stale processes"
+	@for port in 7777 3000; do \
+		pids=$$(lsof -ti:$$port 2>/dev/null); \
+		if [ -n "$$pids" ]; then echo "   killing $$pids on :$$port"; kill -9 $$pids 2>/dev/null || true; fi; \
+	done
 	@echo "==> backend  $(BACKEND_ADDR)"
 	@echo "==> frontend http://localhost:3000"
 	@echo "press Ctrl-C to stop both"
-	@trap 'kill 0' INT TERM EXIT; \
+	@trap 'echo; echo "==> stopping..."; pkill -P $$$$ 2>/dev/null; kill 0 2>/dev/null; exit 0' INT TERM; \
 	$(REPS_BIN) serve --addr $(BACKEND_ADDR) & \
+	BACKEND_PID=$$!; \
 	(cd $(WEB_DIR) && bun dev) & \
-	wait
+	FRONTEND_PID=$$!; \
+	wait $$BACKEND_PID $$FRONTEND_PID
 
 clean: ## Remove build artefacts
 	rm -rf bin/ web/.next/ web/.turbo/
