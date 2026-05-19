@@ -401,7 +401,9 @@ func collectSourceRefs(kinds []string) ([]SourcePlan, error) {
 			if err != nil {
 				return nil, err
 			}
-			plan.From, err = promptFile("Path to a text/markdown paste of your LinkedIn content (blank to skip — site blocks scrapers)")
+			plan.From, err = capturePasteBody("LinkedIn", "linkedin",
+				hasScrapingDogOrProxycurl(),
+				"https://www.linkedin.com/in/<your-slug>/")
 			if err != nil {
 				return nil, err
 			}
@@ -411,7 +413,8 @@ func collectSourceRefs(kinds []string) ([]SourcePlan, error) {
 			if err != nil {
 				return nil, err
 			}
-			plan.From, err = promptFile("Path to a text paste of recent posts (blank to skip)")
+			plan.From, err = capturePasteBody("X (Twitter)", "x", false,
+				"https://x.com/<your-handle>")
 			if err != nil {
 				return nil, err
 			}
@@ -452,6 +455,54 @@ func promptFile(title string) (string, error) {
 		return "", nil
 	}
 	return expandPath(v), nil
+}
+
+// capturePasteBody opens a multi-line text input inside the TUI so we don't
+// have to drop out of huh to read stdin. Returns the path of a temp file
+// containing the pasted content (empty string if user skipped).
+func capturePasteBody(label, kind string, hasAutoFetch bool, openURL string) (string, error) {
+	desc := "Open " + openURL + " in your browser, select all (Cmd-A → Cmd-C),\n" +
+		"then paste here. Leave blank to skip this source."
+	if hasAutoFetch && kind == "linkedin" {
+		desc = "You have an auto-fetch key set — leave this blank and the URL will\n" +
+			"be fetched for you. Paste only if you want to override that."
+	}
+
+	var body string
+	err := huh.NewForm(huh.NewGroup(
+		huh.NewText().
+			Title(label + " profile — paste content (optional)").
+			Description(desc).
+			CharLimit(200_000).
+			Lines(8).
+			Value(&body),
+	)).Run()
+	if err != nil {
+		return "", wrapAbort(err)
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return "", nil
+	}
+	// Write to a temp file we can hand to the ingest pipeline.
+	tmp, err := os.CreateTemp("", "reps-paste-"+kind+"-*.txt")
+	if err != nil {
+		return "", err
+	}
+	if _, err := tmp.WriteString(body); err != nil {
+		tmp.Close()
+		return "", err
+	}
+	if err := tmp.Close(); err != nil {
+		return "", err
+	}
+	return tmp.Name(), nil
+}
+
+func hasScrapingDogOrProxycurl() bool {
+	return os.Getenv("SCRAPINGDOG_API_KEY") != "" ||
+		os.Getenv("PROXYCURL_API_KEY") != "" ||
+		os.Getenv("ENRICHLAYER_API_KEY") != ""
 }
 
 // ----------------------------------------------------------------------------

@@ -149,12 +149,11 @@ func readPaste(fromFile string) (string, error) {
 		}
 		return string(b), nil
 	}
-	fmt.Println("─────────────────────────────────────────────────────────")
-	fmt.Println(" Paste the actual page content below (Cmd-A → Cmd-C on the")
-	fmt.Println(" LinkedIn / X tab, then Cmd-V here). Tip: set PROXYCURL_API_KEY")
-	fmt.Println(" to skip this step in future and have profiles auto-fetched.")
-	fmt.Println(" When done, press ENTER then Ctrl-D on a blank line.")
-	fmt.Println("─────────────────────────────────────────────────────────")
+	fmt.Println()
+	fmt.Println("Paste the page content below (Cmd-A → Cmd-C on the source tab,")
+	fmt.Println("then Cmd-V here). Press ENTER then Ctrl-D on a blank line when done.")
+	fmt.Println("Tip: set SCRAPINGDOG_API_KEY to auto-fetch LinkedIn from now on.")
+	fmt.Println()
 	b, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", err
