@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -62,7 +61,6 @@ func RunWithSpinner(label string, work func(ctx context.Context, log func(string
 }
 
 type spinnerModel struct {
-	mu      sync.Mutex
 	label   string
 	spin    spinner.Model
 	logs    chan string
