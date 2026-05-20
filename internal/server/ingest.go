@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Prasad-178/reps/internal/ingest"
@@ -233,39 +234,59 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---- profile rebuild (long-running) — fire-and-forget on the server, but
-// returns a job id the client can poll. Simple impl: a single in-memory
-// status entry per server instance.
+// returns a job id the client can poll. Singleton: only one rebuild at a
+// time, protected by a mutex. Lifecycle is bound to a server-scoped
+// cancellable context so the goroutine dies cleanly on shutdown.
 
 type rebuildStatus struct {
-	Running bool   `json:"running"`
-	StartedAt int64 `json:"started_at"`
-	FinishedAt int64 `json:"finished_at"`
-	Error string `json:"error,omitempty"`
-	LastLine string `json:"last_line,omitempty"`
+	Running    bool   `json:"running"`
+	StartedAt  int64  `json:"started_at"`
+	FinishedAt int64  `json:"finished_at"`
+	Error      string `json:"error,omitempty"`
+	LastLine   string `json:"last_line,omitempty"`
 }
 
-var currentRebuild rebuildStatus
+var (
+	rebuildMu     sync.Mutex
+	rebuildState  rebuildStatus
+	rebuildCancel context.CancelFunc
+)
+
+func snapshotRebuild() rebuildStatus {
+	rebuildMu.Lock()
+	defer rebuildMu.Unlock()
+	return rebuildState
+}
 
 func (s *Server) rebuildProfile(w http.ResponseWriter, r *http.Request) {
-	if currentRebuild.Running {
-		writeJSON(w, 200, currentRebuild)
+	rebuildMu.Lock()
+	if rebuildState.Running {
+		out := rebuildState
+		rebuildMu.Unlock()
+		writeJSON(w, 200, out)
 		return
 	}
-	currentRebuild = rebuildStatus{Running: true, StartedAt: nowUnix()}
+	ctx, cancel := context.WithCancel(context.Background())
+	rebuildCancel = cancel
+	rebuildState = rebuildStatus{Running: true, StartedAt: nowUnix()}
+	rebuildMu.Unlock()
+
 	go func() {
-		ctx := context.Background()
+		defer cancel()
 		err := s.pipeline().Rebuild(ctx)
-		currentRebuild.Running = false
-		currentRebuild.FinishedAt = nowUnix()
+		rebuildMu.Lock()
+		rebuildState.Running = false
+		rebuildState.FinishedAt = nowUnix()
 		if err != nil {
-			currentRebuild.Error = err.Error()
+			rebuildState.Error = err.Error()
 		}
+		rebuildMu.Unlock()
 	}()
-	writeJSON(w, 202, currentRebuild)
+	writeJSON(w, 202, snapshotRebuild())
 }
 
-func (s *Server) rebuildStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, currentRebuild)
+func (s *Server) rebuildStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, snapshotRebuild())
 }
 
 func nowUnix() int64 { return time.Now().Unix() }

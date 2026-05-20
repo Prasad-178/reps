@@ -182,7 +182,10 @@ func (c *Client) doRetry(ctx context.Context, method, url string, body []byte, o
 			return err
 		}
 		defer resp.Body.Close()
-		buf, err := io.ReadAll(resp.Body)
+		// Cap response body at 32 MiB. OpenRouter chat responses are tiny
+		// (≤ MaxTokens output) but a misbehaving provider could in theory
+		// stream forever; this keeps a single bad call from eating RAM.
+		buf, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 		if err != nil {
 			return err
 		}
