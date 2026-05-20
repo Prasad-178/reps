@@ -1,20 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
 import { PageHeader } from "@/components/app/shell";
-import { Insights } from "@/components/app/insights";
+
+// Lazy-load recharts (~300 KB gzipped) only when this page is visible.
+// Skeleton shown until the chunk arrives.
+const EloChart = dynamic(() => import("@/components/app/elo-chart"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse rounded-md bg-[color-mix(in_oklch,var(--foreground)_8%,transparent)]" />,
+});
+
+// Lazy-load AI insights (own LLM call + JSON parsing) so dashboard
+// renders instantly even when the analyst is slow.
+const Insights = dynamic(
+  () => import("@/components/app/insights").then((m) => ({ default: m.Insights })),
+  { ssr: false }
+);
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -170,47 +173,7 @@ export default function DashboardPage() {
                   No ELO history yet — finish a drill to see your curve.
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={series} margin={{ left: -10, right: 8, top: 4, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="grad-elo" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.5} />
-                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="t"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={42}
-                      domain={["dataMin - 10", "dataMax + 10"]}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--card)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 12,
-                      }}
-                      labelStyle={{ color: "var(--muted-foreground)" }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="overall"
-                      stroke="var(--primary)"
-                      strokeWidth={2}
-                      fill="url(#grad-elo)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <EloChart data={series} />
               )}
             </CardContent>
           </Card>
