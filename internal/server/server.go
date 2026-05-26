@@ -50,6 +50,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/profile", s.profile)
 	mux.HandleFunc("GET /api/sessions", s.sessions)
 	mux.HandleFunc("GET /api/sessions/{id}", s.replay)
+	mux.HandleFunc("POST /api/sessions/{id}/analyze", s.sessionAnalyze)
 	mux.HandleFunc("GET /api/plans", s.plans)
 	mux.HandleFunc("GET /api/plans/latest", s.latestPlan)
 
@@ -372,6 +373,72 @@ func (s *Server) replay(w http.ResponseWriter, r *http.Request) {
 		"session":   sess,
 		"questions": out,
 	})
+}
+
+func (s *Server) sessionAnalyze(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeErr(w, 400, fmt.Errorf("missing session id"))
+		return
+	}
+	// resolve short prefix
+	full := id
+	if len(id) < 36 {
+		row := s.Store.DB.QueryRow(`SELECT id FROM sessions WHERE id LIKE ?`, id+"%")
+		if err := row.Scan(&full); err != nil {
+			writeErr(w, 404, fmt.Errorf("session %q not found", id))
+			return
+		}
+	}
+	var startedAt int64
+	var mode string
+	if err := s.Store.DB.QueryRow(
+		`SELECT started_at, COALESCE(mode,'') FROM sessions WHERE id = ?`, full,
+	).Scan(&startedAt, &mode); err != nil {
+		writeErr(w, 404, err)
+		return
+	}
+
+	qs, err := s.Store.QuestionsBySession(full)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	if len(qs) == 0 {
+		writeErr(w, 400, fmt.Errorf("session has no questions to analyze"))
+		return
+	}
+
+	items := make([]agents.SessionAnalystQuestion, 0, len(qs))
+	for _, q := range qs {
+		ai := agents.SessionAnalystQuestion{
+			Ord: q.Ord, Category: q.Category, Topic: q.TargetTopic, TargetELO: q.TargetELO,
+		}
+		turns, _ := s.Store.ListTurnsForQuestion(q.ID)
+		for _, t := range turns {
+			ai.Turns = append(ai.Turns, agents.SessionAnalystTurn{
+				Speaker: t.Speaker, Kind: t.Kind, Text: t.Text,
+			})
+		}
+		if j, ok, _ := s.Store.GetJudgment(q.ID); ok {
+			ai.Rating = j.Rating
+			ai.BetterSketch = j.BetterSketch
+			_ = json.Unmarshal([]byte(j.StrengthsJSON), &ai.Strengths)
+			_ = json.Unmarshal([]byte(j.MissedJSON), &ai.Missed)
+		}
+		items = append(items, ai)
+	}
+
+	profile, _, _, _ := s.Store.GetProfile()
+	analyst := agents.NewSessionAnalyst(s.Client)
+	critique, err := analyst.Critique(r.Context(), agents.SessionAnalystInput{
+		Profile: profile, Mode: mode, Started: startedAt, Items: items,
+	})
+	if err != nil {
+		writeErr(w, 500, fmt.Errorf("analyze: %w", err))
+		return
+	}
+	writeJSON(w, 200, critique)
 }
 
 func (s *Server) plans(w http.ResponseWriter, _ *http.Request) {

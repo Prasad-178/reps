@@ -108,6 +108,17 @@ export type ReplayResponse = {
   questions: Question[];
 };
 
+export type SessionCritique = {
+  headline: string;
+  verdict: "good" | "mixed" | "bad" | string;
+  overall_rating: number;
+  patterns: { name: string; evidence: string; fix: string }[];
+  strengths: string[];
+  growth_edge: { action: string; why: string }[];
+  drill_again: string[];
+  reading: { topic: string; why: string; url?: string }[];
+};
+
 export type Plan = {
   id: string;
   generated_at: number;
@@ -124,6 +135,8 @@ export const api = {
   profile:  () => call<Profile>("/api/profile"),
   sessions: () => call<SessionSummary[]>("/api/sessions"),
   replay:   (id: string) => call<ReplayResponse>(`/api/sessions/${id}`),
+  analyzeSession: (id: string) =>
+    call<SessionCritique>(`/api/sessions/${id}/analyze`, { method: "POST" }),
   elo:      (days = 30) => call<EloPoint[]>(`/api/elo?days=${days}`),
   plans:    () => call<Plan[]>("/api/plans"),
   latestPlan: () => call<Plan | null>("/api/plans/latest"),

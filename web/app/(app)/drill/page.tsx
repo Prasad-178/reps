@@ -396,6 +396,14 @@ export default function DrillPage() {
 
             {state.status === "done" && (
               <div className="flex justify-end gap-2">
+                {state.sessionId && (
+                  <a
+                    href={`/replay/${state.sessionId}`}
+                    className="inline-flex items-center justify-center gap-1 rounded-md border border-[var(--border)] px-3 h-9 text-sm hover:bg-[var(--secondary)] transition-colors"
+                  >
+                    <Sparkles className="size-3.5" /> Review + analyze
+                  </a>
+                )}
                 <Button variant="outline" onClick={reset}>New drill</Button>
               </div>
             )}
