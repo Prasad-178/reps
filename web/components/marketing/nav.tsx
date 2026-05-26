@@ -20,12 +20,21 @@ export function MarketingNav() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/70 border-b border-[var(--border)]">
       <div className="mx-auto max-w-6xl px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group">
-          <span className="grid place-items-center size-7 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)] font-mono text-sm font-bold transition-transform [transition-timing-function:var(--ease-out)] group-active:scale-[0.97]">
-            R
+        <Link href="/" className="flex items-baseline gap-1.5 group" aria-label="reps home">
+          <span
+            className="italic text-2xl leading-none tracking-[-0.02em] text-foreground transition-colors duration-200 [transition-timing-function:var(--ease-out)] group-hover:text-[var(--primary)]"
+            style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+          >
+            reps
           </span>
-          <span className="font-semibold tracking-[-0.01em]">reps</span>
-          <span className="hidden sm:inline text-xs font-mono text-[var(--muted-foreground)] ml-1">
+          <span
+            className="text-2xl leading-none text-[var(--primary)] -translate-y-px transition-transform duration-200 [transition-timing-function:var(--ease-out)] group-hover:translate-x-0.5"
+            style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+            aria-hidden
+          >
+            .
+          </span>
+          <span className="hidden sm:inline text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--muted-foreground)] ml-2 self-center">
             v0.1
           </span>
         </Link>

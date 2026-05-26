@@ -95,6 +95,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Config"
         title="Settings"
         subtitle={cfg ? cfg.paths.home : "Loading…"}
         action={

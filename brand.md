@@ -7,27 +7,29 @@
 
 ---
 
-## Palette — Obsidian Spark
+## Palette — Phosphor Ember
 
-Electric violet on near-black. Linear-style premium tech.
+Burnished amber on graphite. Terminal-CRT warmth with editorial restraint.
+Replaces the prior "Obsidian Spark" violet — see commit history for the
+transition rationale.
 
 ### Seeds (OKLCH)
 
 | Token | Light | Dark |
 | --- | --- | --- |
-| `--background` | `oklch(0.99 0.003 280)` | `oklch(0.13 0.006 280)` |
-| `--foreground` | `oklch(0.18 0.01 280)` | `oklch(0.97 0.005 280)` |
-| `--card` | `oklch(0.985 0.005 280)` | `oklch(0.17 0.008 280)` |
-| `--primary` | `oklch(0.5 0.22 285)` | `oklch(0.66 0.22 285)` |
-| `--primary-foreground` | `oklch(0.99 0.003 280)` | `oklch(0.99 0.005 280)` |
-| `--muted` | `oklch(0.95 0.005 280)` | `oklch(0.2 0.008 280)` |
-| `--muted-foreground` | `oklch(0.5 0.012 280)` | `oklch(0.68 0.01 280)` |
-| `--accent` | `oklch(0.93 0.04 285)` | `oklch(0.25 0.06 285)` |
+| `--background` | `oklch(0.99 0.004 70)` | `oklch(0.135 0.006 60)` |
+| `--foreground` | `oklch(0.18 0.012 60)` | `oklch(0.97 0.006 70)` |
+| `--card` | `oklch(0.985 0.006 70)` | `oklch(0.175 0.008 60)` |
+| `--primary` | `oklch(0.62 0.16 70)` | `oklch(0.78 0.16 75)` |
+| `--primary-foreground` | `oklch(0.13 0.012 60)` | `oklch(0.13 0.012 60)` |
+| `--muted` | `oklch(0.95 0.008 70)` | `oklch(0.2 0.01 60)` |
+| `--muted-foreground` | `oklch(0.48 0.015 60)` | `oklch(0.68 0.012 70)` |
+| `--accent` | `oklch(0.93 0.05 70)` | `oklch(0.27 0.06 70)` |
 | `--destructive` | `oklch(0.58 0.22 25)` | `oklch(0.7 0.2 25)` |
 | `--success` | `oklch(0.55 0.16 145)` | `oklch(0.78 0.18 145)` |
-| `--warning` | `oklch(0.7 0.16 75)` | `oklch(0.82 0.15 75)` |
-| `--border` | `oklch(0.92 0.005 280)` | `oklch(0.25 0.012 280)` |
-| `--ring` | `oklch(0.5 0.22 285 / 0.5)` | `oklch(0.66 0.22 285 / 0.55)` |
+| `--warning` | `oklch(0.7 0.16 75)` | `oklch(0.85 0.16 80)` |
+| `--border` | `oklch(0.92 0.008 70)` | `oklch(0.26 0.014 60)` |
+| `--ring` | `oklch(0.62 0.16 70 / 0.5)` | `oklch(0.78 0.16 75 / 0.55)` |
 | `--radius` | `0.75rem` | `0.75rem` |
 
 All foreground/background pairs verified ≥ WCAG AA (4.5:1 body text, 3:1 large/icons).
@@ -39,10 +41,22 @@ All foreground/background pairs verified ≥ WCAG AA (4.5:1 body text, 3:1 large
 
 ## Typography
 
-- **Sans:** Inter (variable, latin) — `--font-sans`. Used for everything except code/data.
-- **Mono:** JetBrains Mono — `--font-mono`. Used for numbers (ELO, deltas), category tags, technical labels, code blocks, IDs.
+- **Display (editorial accent):** Instrument Serif (italic) — `--font-display`.
+  Used for: the `reps.` wordmark, interviewer pull-quotes, verdict headlines,
+  empty-state hero copy. Distinctive italic serif — characterful but legible.
+- **Sans (body):** Inter (variable, latin) — `--font-sans`. Default for
+  everything except code/data/display moments.
+- **Mono (data):** JetBrains Mono — `--font-mono`. Used for numbers (ELO,
+  deltas), category tags, technical labels, code blocks, IDs, eyebrows.
 
-Wired via `next/font/google` in `web/app/layout.tsx`. Font features `cv11 ss01 ss03` enabled in `body`.
+Wired via `next/font/google` in `web/app/layout.tsx`. Font features
+`cv11 ss01 ss03` enabled in `body`.
+
+## Logo
+
+A serif italic wordmark: `reps` (foreground) + amber `.` (primary). No icon,
+no bounded box. The period is the brand mark. Hovering the logo nudges the
+period one pixel to the right — small life-signal on an otherwise still mark.
 
 ## Motion / interaction (Emil Kowalski rules embedded)
 

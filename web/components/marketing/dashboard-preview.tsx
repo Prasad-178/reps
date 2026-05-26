@@ -88,11 +88,20 @@ export function DashboardPreview() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] divide-y md:divide-y-0 md:divide-x divide-[var(--border)]">
             <aside className="p-5 flex flex-col gap-1 text-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="grid place-items-center size-7 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)] font-mono text-xs font-bold">
-                  R
+              <div className="flex items-baseline gap-0.5 mb-3">
+                <span
+                  className="italic text-xl leading-none tracking-[-0.02em] text-foreground"
+                  style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+                >
+                  reps
                 </span>
-                <span className="font-semibold">reps</span>
+                <span
+                  className="text-xl leading-none text-[var(--primary)]"
+                  style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+                  aria-hidden
+                >
+                  .
+                </span>
               </div>
               {["Dashboard", "Drill", "Sources", "JDs", "Plan", "History"].map((n, i) => (
                 <div

@@ -13,6 +13,7 @@ export default function PlanPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Coach"
         title="Study plan"
         subtitle={
           data

@@ -96,6 +96,7 @@ export default function SourcesPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Corpus"
         title="Sources"
         subtitle={`${list.length} ingested`}
         action={

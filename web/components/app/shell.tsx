@@ -77,13 +77,23 @@ function SidebarBody({
     <>
       <Link
         href="/"
-        className="flex items-center gap-2 px-5 h-14 border-b border-[var(--border)]"
+        className="flex items-baseline gap-1.5 px-5 h-14 border-b border-[var(--border)] group"
         onClick={onItemClick}
+        aria-label="reps home"
       >
-        <span className="grid place-items-center size-7 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)] font-mono text-sm font-bold">
-          R
+        <span
+          className="font-display italic text-2xl leading-none tracking-[-0.02em] text-foreground transition-colors duration-200 [transition-timing-function:var(--ease-out)] group-hover:text-[var(--primary)]"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+        >
+          reps
         </span>
-        <span className="font-semibold tracking-[-0.01em]">reps</span>
+        <span
+          className="text-2xl leading-none text-[var(--primary)] -translate-y-px transition-transform duration-200 [transition-timing-function:var(--ease-out)] group-hover:translate-x-0.5"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+          aria-hidden
+        >
+          .
+        </span>
       </Link>
 
       <nav className="flex flex-col gap-0.5 px-3 py-3 flex-1 overflow-y-auto">
@@ -171,11 +181,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             {drawerOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
-          <Link href="/" className="flex items-center gap-2">
-            <span className="grid place-items-center size-6 rounded bg-[var(--primary)] text-[var(--primary-foreground)] font-mono text-[11px] font-bold">
-              R
+          <Link href="/" className="flex items-baseline gap-0.5" aria-label="reps home">
+            <span
+              className="italic text-xl leading-none tracking-[-0.02em]"
+              style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+            >
+              reps
             </span>
-            <span className="font-semibold text-sm tracking-[-0.01em]">reps</span>
+            <span
+              className="text-xl leading-none text-[var(--primary)]"
+              style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+              aria-hidden
+            >
+              .
+            </span>
           </Link>
         </header>
 

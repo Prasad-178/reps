@@ -13,6 +13,7 @@ export default function ProfilePage() {
   return (
     <>
       <PageHeader
+        eyebrow="You"
         title="Profile"
         subtitle={
           data?.built_at

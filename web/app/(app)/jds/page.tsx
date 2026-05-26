@@ -13,6 +13,7 @@ export default function JDsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Targets"
         title="Job descriptions"
         subtitle={data ? `${data.length} target roles` : "Loading…"}
       />

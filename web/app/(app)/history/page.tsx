@@ -18,7 +18,7 @@ export default function HistoryPage() {
 
   return (
     <>
-      <PageHeader title="History" subtitle={data ? `${data.length} sessions` : "Loading…"} />
+      <PageHeader eyebrow="Archive" title="History" subtitle={data ? `${data.length} sessions` : "Loading…"} />
       <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
         {loading && (
           <div className="space-y-2">
