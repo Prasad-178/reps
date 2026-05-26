@@ -43,8 +43,15 @@ export type Verdict = {
   topic_tags: string[];
 };
 
+export type Exchange = {
+  question: string;
+  questionKind: "opening" | "followup";
+  followupIndex?: number; // 1-based when followup
+  answer?: string;        // populated once submitted
+};
+
 export type DrillState = {
-  status: "idle" | "running" | "awaiting-answer" | "done" | "error";
+  status: "idle" | "running" | "awaiting-answer" | "awaiting-next" | "done" | "error";
   events: DrillEvent[];
   sessionId?: string;
   currentQuestionId?: string;
@@ -58,6 +65,10 @@ export type DrillState = {
   verdict?: Verdict;
   eloUpdate?: { category: string; before: number; after: number; delta: number };
   error?: string;
+  // Transcript of the *current* question only (opening + answer + follow-ups).
+  // Cleared at question:start. Used to render the submitted answer with a
+  // loading indicator while the next interviewer turn is being computed.
+  exchanges: Exchange[];
 };
 
 export type DrillOpts = {
@@ -74,12 +85,15 @@ export function useDrill() {
     events: [],
     followupCount: 0,
     streaming: false,
+    exchanges: [],
   });
+  const pendingAnswerRef = useRef<string | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
 
   const start = useCallback((opts: DrillOpts) => {
     sourceRef.current?.close();
-    setState({ status: "running", events: [], followupCount: 0, streaming: false });
+    pendingAnswerRef.current = null;
+    setState({ status: "running", events: [], followupCount: 0, streaming: false, exchanges: [] });
 
     const url = api.drillURL(opts);
     const es = new EventSource(url);
@@ -102,6 +116,7 @@ export function useDrill() {
             next.currentText = undefined;
             next.streamingText = "";
             next.streaming = false;
+            next.exchanges = [];
             break;
           case "planner:decision":
             next.decision = ev.decision;
@@ -116,12 +131,50 @@ export function useDrill() {
             next.streaming = false;
             next.streamingText = "";
             next.status = "awaiting-answer";
+            next.exchanges = [{ question: ev.text, questionKind: "opening" }];
             break;
           case "interviewer:followup":
             next.currentText = ev.text;
             next.followupCount = ev.index;
             next.status = "awaiting-answer";
+            next.exchanges = [
+              ...next.exchanges,
+              { question: ev.text, questionKind: "followup", followupIndex: ev.index },
+            ];
             break;
+          case "interviewer:deciding": {
+            // The previously-submitted answer is what we're now grading.
+            // Attach the pendingAnswerRef to the last exchange so the UI
+            // can show the user's reply with a loading indicator.
+            const pending = pendingAnswerRef.current;
+            if (pending != null && next.exchanges.length > 0) {
+              const last = next.exchanges[next.exchanges.length - 1];
+              if (last.answer === undefined) {
+                next.exchanges = [
+                  ...next.exchanges.slice(0, -1),
+                  { ...last, answer: pending },
+                ];
+              }
+              pendingAnswerRef.current = null;
+            }
+            next.status = "awaiting-next";
+            break;
+          }
+          case "judge:grading": {
+            // Same flush for the *final* answer (no more follow-ups).
+            const pending = pendingAnswerRef.current;
+            if (pending != null && next.exchanges.length > 0) {
+              const last = next.exchanges[next.exchanges.length - 1];
+              if (last.answer === undefined) {
+                next.exchanges = [
+                  ...next.exchanges.slice(0, -1),
+                  { ...last, answer: pending },
+                ];
+              }
+              pendingAnswerRef.current = null;
+            }
+            break;
+          }
           case "judge:verdict":
             next.verdict = ev.verdict;
             break;
@@ -196,7 +249,19 @@ export function useDrill() {
   const submit = useCallback(
     async (text: string) => {
       if (!state.sessionId || !state.currentQuestionId) return;
-      setState((s) => ({ ...s, status: "running" }));
+      pendingAnswerRef.current = text;
+      setState((s) => {
+        // Eagerly attach the answer to the last exchange so the UI can render
+        // it immediately with a "thinking" indicator while the backend works.
+        const exchanges = [...s.exchanges];
+        if (exchanges.length > 0) {
+          const last = exchanges[exchanges.length - 1];
+          if (last.answer === undefined) {
+            exchanges[exchanges.length - 1] = { ...last, answer: text };
+          }
+        }
+        return { ...s, status: "awaiting-next", exchanges };
+      });
       await api.submitAnswer(state.sessionId, state.currentQuestionId, text);
     },
     [state.sessionId, state.currentQuestionId]
@@ -209,7 +274,8 @@ export function useDrill() {
 
   const reset = useCallback(() => {
     sourceRef.current?.close();
-    setState({ status: "idle", events: [], followupCount: 0, streaming: false });
+    pendingAnswerRef.current = null;
+    setState({ status: "idle", events: [], followupCount: 0, streaming: false, exchanges: [] });
   }, []);
 
   useEffect(() => {

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useDrill } from "@/lib/useDrill";
-import { Brain, Send, Mic, MicOff, X, Sparkles, ArrowRight } from "lucide-react";
+import { Brain, Send, MicOff, X, Sparkles, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const easeOut: [number, number, number, number] = [0.23, 1, 0.32, 1];
@@ -31,6 +31,7 @@ export default function DrillPage() {
 
   const idle = state.status === "idle";
   const awaiting = state.status === "awaiting-answer";
+  const awaitingNext = state.status === "awaiting-next";
 
   async function onSubmit() {
     if (!answer.trim()) return;
@@ -52,11 +53,13 @@ export default function DrillPage() {
             ? `Q${state.currentQuestionOrd ?? "—"}/${state.totalQuestions ?? "—"} · ${liveStatus(state)}`
             : state.status === "awaiting-answer"
               ? `Q${state.currentQuestionOrd}/${state.totalQuestions} · awaiting your answer`
-              : state.status === "done"
-                ? "Done. Start another?"
-                : state.status === "error"
-                  ? "Error"
-                  : "Ready"
+              : state.status === "awaiting-next"
+                ? `Q${state.currentQuestionOrd}/${state.totalQuestions} · ${liveStatus(state)}`
+                : state.status === "done"
+                  ? "Done. Start another?"
+                  : state.status === "error"
+                    ? "Error"
+                    : "Ready"
         }
         action={
           !idle && (
@@ -151,15 +154,19 @@ export default function DrillPage() {
               </motion.div>
             )}
 
-            {/* Question + thinking stages */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                {!state.currentText && !state.streamingText && state.status === "running" && (
+            {/* Pre-question thinking stages (no opening text yet) */}
+            {!state.currentText && !state.streamingText && state.status === "running" && (
+              <Card>
+                <CardContent className="p-6">
                   <StageList state={state} />
-                )}
+                </CardContent>
+              </Card>
+            )}
 
-                {/* Streaming typewriter — visible while tokens arrive */}
-                {state.streamingText && !state.currentText && (
+            {/* Streaming typewriter — visible while opening tokens arrive */}
+            {state.streamingText && state.exchanges.length === 0 && (
+              <Card>
+                <CardContent className="p-6">
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -173,28 +180,54 @@ export default function DrillPage() {
                       <Caret />
                     </p>
                   </motion.div>
-                )}
+                </CardContent>
+              </Card>
+            )}
 
-                <AnimatePresence mode="wait">
-                  {state.currentText && (
-                    <motion.div
-                      key={state.currentText.slice(0, 40)}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.25, ease: easeOut }}
-                    >
-                      {state.followupCount > 0 && (
+            {/* Running transcript: opening + answer + each follow-up + answer */}
+            {state.exchanges.map((ex, i) => {
+              const isLast = i === state.exchanges.length - 1;
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, ease: easeOut }}
+                >
+                  <Card>
+                    <CardContent className="p-6 space-y-4">
+                      <div>
                         <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--primary)] mb-2">
-                          Follow-up {state.followupCount}
+                          {ex.questionKind === "opening"
+                            ? "Interviewer"
+                            : `Follow-up ${ex.followupIndex}`}
                         </p>
+                        <p className={ex.questionKind === "opening" ? "text-lg leading-relaxed" : "text-base leading-relaxed"}>
+                          {ex.question}
+                        </p>
+                      </div>
+
+                      {ex.answer !== undefined && (
+                        <div className="pt-3 border-t border-[var(--border)]">
+                          <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">
+                            You
+                          </p>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap text-[var(--foreground)]">
+                            {ex.answer}
+                          </p>
+                          {isLast && awaitingNext && (
+                            <p className="mt-3 flex items-center gap-2 text-xs font-mono uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                              <Loader2 className="size-3 animate-spin" />
+                              {liveStatus(state)}
+                            </p>
+                          )}
+                        </div>
                       )}
-                      <p className="text-lg leading-relaxed">{state.currentText}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
 
             {/* Answer box */}
             {awaiting && (
@@ -382,17 +415,23 @@ export default function DrillPage() {
 }
 
 function liveStatus(state: ReturnType<typeof useDrill>["state"]): string {
-  const last = state.events[state.events.length - 1];
-  if (!last) return "starting…";
-  switch (last.type) {
-    case "planner:thinking": return "planner thinking…";
-    case "planner:decision": return "planner decided";
-    case "rag:retrieve": return "retrieving context…";
-    case "interviewer:thinking": return "drafting question…";
-    case "interviewer:deciding": return "deciding follow-up…";
-    case "judge:grading": return "judge grading…";
-    default: return "running";
+  // Walk events in reverse to find the most informative one
+  for (let i = state.events.length - 1; i >= 0; i--) {
+    const e = state.events[i];
+    switch (e.type) {
+      case "planner:thinking": return "planner thinking…";
+      case "planner:decision": return "planner decided";
+      case "rag:retrieve":     return "retrieving context…";
+      case "interviewer:thinking": return "drafting question…";
+      case "interviewer:deciding": return "deciding follow-up…";
+      case "interviewer:done_with_question": return "wrapping up…";
+      case "judge:grading":  return "judge grading…";
+      case "judge:verdict":  return "judge done";
+      case "elo:update":     return "updating ELO…";
+      case "question:end":   return "question complete";
+    }
   }
+  return "starting…";
 }
 
 function Caret() {

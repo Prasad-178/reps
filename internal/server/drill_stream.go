@@ -290,7 +290,7 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 		}
 
 		// wait for first answer
-		answer, err := d.waitAnswer(ctx)
+		answer, ended, err := d.waitAnswer(ctx)
 		if err != nil {
 			return err
 		}
@@ -303,6 +303,10 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 		transcript.Exchanges = append(transcript.Exchanges, agents.Exchange{Answer: answer})
 
 		turnOrd := 1
+		if ended {
+			emit(flush, "interviewer:done_with_question", map[string]any{"skipped": true})
+			maxFu = 0
+		}
 		for fu := 0; fu < maxFu; fu++ {
 			emit(flush, "interviewer:deciding", map[string]any{"followups_remaining": maxFu - fu})
 			step, err := iv.Step(ctx, agents.InterviewerInput{
@@ -328,7 +332,7 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 			})
 
 			// wait for next answer
-			a2, err := d.waitAnswer(ctx)
+			a2, ended2, err := d.waitAnswer(ctx)
 			if err != nil {
 				return err
 			}
@@ -340,6 +344,10 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 				return err
 			}
 			transcript.Exchanges = append(transcript.Exchanges, agents.Exchange{Answer: a2})
+			if ended2 {
+				emit(flush, "interviewer:done_with_question", map[string]any{"skipped": true})
+				break
+			}
 		}
 
 		emit(flush, "judge:grading", map[string]any{})
@@ -369,9 +377,11 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 }
 
 // waitAnswer blocks until an answer arrives via submitAnswer or the user ends
-// the question via endQuestion, in which case the prior partial input
-// (drained from the channel if any) is returned.
-func (d *drillSession) waitAnswer(ctx context.Context) (string, error) {
+// the question via endQuestion. Returns (text, ended, err). When ended is
+// true the caller should skip any further follow-up loop and proceed to
+// judging — the user clicked "Skip follow-ups" and any remaining probes
+// should be abandoned.
+func (d *drillSession) waitAnswer(ctx context.Context) (string, bool, error) {
 	d.mu.Lock()
 	ch := d.answer
 	end := d.end
@@ -379,16 +389,16 @@ func (d *drillSession) waitAnswer(ctx context.Context) (string, error) {
 
 	select {
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return "", false, ctx.Err()
 	case a := <-ch:
-		return a, nil
+		return a, false, nil
 	case <-end:
-		// drained partial answer if any
+		// drain partial answer if any
 		select {
 		case a := <-ch:
-			return a, nil
+			return a, true, nil
 		default:
-			return "", nil
+			return "", true, nil
 		}
 	}
 }
