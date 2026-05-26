@@ -41,6 +41,7 @@ export default function ReplayPage({
   return (
     <>
       <PageHeader
+        eyebrow="Replay"
         title={`Session ${id.slice(0, 8)}`}
         subtitle={
           data?.session

@@ -77,6 +77,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Reps"
         title="Dashboard"
         subtitle={
           sessions.data
@@ -293,27 +294,26 @@ export default function DashboardPage() {
 
 function EmptyState() {
   return (
-    <Card className="border-dashed">
-      <CardContent className="p-8 text-center space-y-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--primary)]">
-          New here?
-        </p>
-        <h2 className="text-xl font-semibold tracking-[-0.015em]">
-          You haven&apos;t drilled yet.
-        </h2>
-        <p className="text-sm text-[var(--muted-foreground)] max-w-md mx-auto">
-          Start by ingesting your resume + GitHub + a JD, rebuild the profile, then run a
-          drill. Numbers populate from there.
-        </p>
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <Button asChild>
-            <Link href="/sources">Add a source</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/drill">Try a drill</Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)]/40 backdrop-blur-sm p-8 sm:p-10 text-center space-y-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--primary)]">
+        New here?
+      </p>
+      <h2 className="pull-quote text-2xl sm:text-3xl leading-tight">
+        <span className="pull-quote-mark text-4xl mr-1 align-top">“</span>
+        You haven&apos;t drilled yet.
+      </h2>
+      <p className="text-sm text-[var(--muted-foreground)] max-w-md mx-auto leading-relaxed">
+        Ingest your resume, GitHub, and a JD. Rebuild the profile.
+        Then run one drill. Numbers populate from there.
+      </p>
+      <div className="flex items-center justify-center gap-2 pt-2">
+        <Button asChild>
+          <Link href="/sources">Add a source</Link>
+        </Button>
+        <Button variant="outline" asChild>
+          <Link href="/drill">Try a drill</Link>
+        </Button>
+      </div>
+    </div>
   );
 }
