@@ -50,9 +50,10 @@ type StepDecision struct {
 }
 
 // OpeningStream streams the opening question text token-by-token via onToken.
-// Uses a dedicated plain-text system prompt — no JSON wrapping — so the
-// stream is directly displayable in a typewriter UI. Defensively extracts
-// the question text if the model still leaks JSON.
+// Uses a dedicated plain-text system prompt so the stream is directly
+// displayable in a typewriter UI. If the model still emits JSON (some
+// providers ignore the plain-text instruction) the token callback is
+// suppressed and the cleaned text is emitted once at the end.
 func (iv *Interviewer) OpeningStream(ctx context.Context, in InterviewerInput, onToken func(string)) (string, string, error) {
 	user := buildInterviewerOpeningPrompt(in)
 	req := llm.ChatRequest{
@@ -64,13 +65,45 @@ func (iv *Interviewer) OpeningStream(ctx context.Context, in InterviewerInput, o
 		Temperature: 0.75,
 		MaxTokens:   500,
 	}
-	full, _, err := iv.Client.ChatStream(ctx, req, onToken)
+
+	// JSON-leak guard. Watch the first few non-whitespace chars. If they
+	// look like the start of a JSON object, swallow all live tokens and
+	// emit the cleaned text once at the end so the user never sees the
+	// raw `{"action":"ask","text":"..."}` in the typewriter.
+	var (
+		buf       strings.Builder
+		decided   bool
+		jsonMode  bool
+	)
+	guarded := func(tok string) {
+		buf.WriteString(tok)
+		if !decided {
+			head := strings.TrimLeft(buf.String(), " \t\n\r")
+			if len(head) == 0 {
+				return
+			}
+			if head[0] == '{' || strings.HasPrefix(head, "```") {
+				jsonMode = true
+			}
+			decided = true
+		}
+		if !jsonMode {
+			onToken(tok)
+		}
+	}
+
+	full, _, err := iv.Client.ChatStream(ctx, req, guarded)
 	if err != nil {
 		return "", "", err
 	}
 	text := extractQuestionText(full)
 	if text == "" {
 		return "", "", fmt.Errorf("interviewer returned empty question")
+	}
+	// If we suppressed the live stream, emit the cleaned result so the
+	// typewriter UI still gets something to render before the opening event.
+	if jsonMode {
+		onToken(text)
 	}
 	return text, in.Decision.Topic, nil
 }
