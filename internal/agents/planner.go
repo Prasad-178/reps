@@ -15,10 +15,11 @@ type PlannerInput struct {
 	CategoryELO    map[string]int
 	RecentTopics   []RecentTopic
 	WeakestTopics  []WeakTopic
-	OverrideCat    string // user-forced category, e.g. via --category
-	OverrideTopic  string // user-forced topic, e.g. via --topic
-	OverrideJDID   string // user-forced JD focus
-	DefaultDiff    int    // default rating to start from when no ELO known
+	SessionTopics  []string // topics/projects already drilled this session — DO NOT REPEAT
+	OverrideCat    string   // user-forced category, e.g. via --category
+	OverrideTopic  string   // user-forced topic, e.g. via --topic
+	OverrideJDID   string   // user-forced JD focus
+	DefaultDiff    int      // default rating to start from when no ELO known
 }
 
 type JDSummary struct {
@@ -107,6 +108,11 @@ func buildPlannerUserPrompt(in PlannerInput) (string, error) {
 	fmt.Fprintf(&sb, "Weakest 10 topics (mean rating < 3.5): %s\n", string(weakJSON))
 	fmt.Fprintf(&sb, "Target JDs: %s\n", string(jdJSON))
 
+	if len(in.SessionTopics) > 0 {
+		stJSON, _ := json.Marshal(in.SessionTopics)
+		fmt.Fprintf(&sb, "Topics ALREADY drilled in THIS session (avoid repeating these projects/topics): %s\n", string(stJSON))
+	}
+
 	if in.OverrideCat != "" {
 		fmt.Fprintf(&sb, "\nUser override: category=%s\n", in.OverrideCat)
 	}
@@ -142,10 +148,14 @@ You must return a single JSON object with this schema and nothing else:
 
 How to choose, in priority order:
 1. If the user supplied an override (category/topic/jd_id), honor it. Still set target_difficulty intelligently from ELO.
-2. Spaced repetition: prefer one of the weakest topics every ~2 drills.
-3. JD-priority: if some JD has core requirements the candidate hasn't drilled, pick "jd-specific" and set jd_id.
-4. Category rotation: don't drill the same category twice in a row unless the user forced it.
-5. Exploration: ~15% of the time, pick something orthogonal (a new topic from the profile that has zero recent hits).
+2. Session diversity (HARD RULE): if "Topics ALREADY drilled in THIS session" is non-empty, you MUST pick a topic
+   anchored in a DIFFERENT project / area of the candidate's profile. The candidate's resume has many surfaces
+   (multiple projects, skills, roles, papers) — spread the questions across them. Never anchor two questions in
+   the same project unless the user forced it via override.
+3. Spaced repetition: prefer one of the weakest topics every ~2 drills.
+4. JD-priority: if some JD has core requirements the candidate hasn't drilled, pick "jd-specific" and set jd_id.
+5. Category rotation: don't drill the same category twice in a row unless the user forced it.
+6. Exploration: ~15% of the time, pick something orthogonal (a new topic from the profile that has zero recent hits).
 
 Difficulty rule:
 - Start from the chosen category's ELO (default 1200 if missing).

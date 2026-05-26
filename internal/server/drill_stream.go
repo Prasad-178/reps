@@ -149,6 +149,8 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 	iv := agents.NewInterviewer(s.Client)
 	judge := agents.NewJudge(s.Client)
 
+	sessionTopics := make([]string, 0, d.opts.Qs)
+
 	for i := 1; i <= d.opts.Qs; i++ {
 		select {
 		case <-ctx.Done():
@@ -195,7 +197,8 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 		decision, err := planner.Decide(ctx, agents.PlannerInput{
 			Profile: profile, JDCards: plannerJDs, CategoryELO: eloMap,
 			RecentTopics: recentMapped, WeakestTopics: weakMapped,
-			OverrideCat: d.opts.Category, OverrideTopic: d.opts.Topic,
+			SessionTopics: sessionTopics,
+			OverrideCat:   d.opts.Category, OverrideTopic: d.opts.Topic,
 			OverrideJDID: d.opts.JD, DefaultDiff: s.Cfg.Elo.StartRating,
 		})
 		if err != nil {
@@ -204,6 +207,7 @@ func (d *drillSession) Run(ctx context.Context, flush flushFn) error {
 		if d.opts.Difficulty > 0 {
 			decision.Difficulty = d.opts.Difficulty
 		}
+		sessionTopics = append(sessionTopics, decision.Topic)
 		emit(flush, "planner:decision", decision)
 
 		emit(flush, "rag:retrieve", map[string]any{})

@@ -95,8 +95,9 @@ func (o *Orchestrator) Run(ctx context.Context, opt Options) error {
 
 	fmt.Fprintf(o.Out, "session %s started (%s mode, %d Qs)\n\n", sess.ID[:8], mode, opt.Qs)
 
+	sessionTopics := make([]string, 0, opt.Qs)
 	for i := 1; i <= opt.Qs; i++ {
-		if err := o.runOneQuestion(ctx, sess.ID, i, opt, profile, jds); err != nil {
+		if err := o.runOneQuestion(ctx, sess.ID, i, opt, profile, jds, &sessionTopics); err != nil {
 			return fmt.Errorf("Q%d: %w", i, err)
 		}
 	}
@@ -140,7 +141,7 @@ func (o *Orchestrator) readUserAnswer(ctx context.Context, useVoice bool) (strin
 }
 
 func (o *Orchestrator) runOneQuestion(
-	ctx context.Context, sessID string, ord int, opt Options, profile string, jds []store.JDCard,
+	ctx context.Context, sessID string, ord int, opt Options, profile string, jds []store.JDCard, sessionTopics *[]string,
 ) error {
 	fmt.Fprintf(o.Out, "─── Q%d/%d ──────────────────────────────────────────────\n", ord, opt.Qs)
 	fmt.Fprint(o.Out, "Planner deciding...\n")
@@ -193,12 +194,17 @@ func (o *Orchestrator) runOneQuestion(
 		})
 	}
 
+	var st []string
+	if sessionTopics != nil {
+		st = *sessionTopics
+	}
 	decision, err := o.Planner.Decide(ctx, agents.PlannerInput{
 		Profile:       profile,
 		JDCards:       plannerJDs,
 		CategoryELO:   elo,
 		RecentTopics:  recentMapped,
 		WeakestTopics: weakMapped,
+		SessionTopics: st,
 		OverrideCat:   opt.CategoryFilter,
 		OverrideTopic: opt.TopicOverride,
 		OverrideJDID:  opt.JDOverride,
@@ -209,6 +215,9 @@ func (o *Orchestrator) runOneQuestion(
 	}
 	if opt.DifficultyOver != 0 {
 		decision.Difficulty = opt.DifficultyOver
+	}
+	if sessionTopics != nil {
+		*sessionTopics = append(*sessionTopics, decision.Topic)
 	}
 	fmt.Fprintf(o.Out, "Plan: %s | topic=%q | diff=%d\n  why: %s\n",
 		decision.Category, decision.Topic, decision.Difficulty, decision.Why)
