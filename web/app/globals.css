@@ -112,6 +112,7 @@
   --radius-sm: calc(var(--radius) - 4px);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
 }
 
 * {
@@ -178,6 +179,89 @@ body {
 
 .bg-grid-fade {
   mask-image: radial-gradient(60% 60% at 50% 30%, black 0%, transparent 80%);
+}
+
+/* ---------------------------------------------------------------
+   Atmospheric background — used app-wide.
+   Two violet halos at top corners, fading to background. Layered on
+   top of the base background. No animation; static depth.
+   --------------------------------------------------------------- */
+.bg-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 15% 0%, color-mix(in oklch, var(--primary) 18%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 40% at 85% 0%, color-mix(in oklch, var(--primary) 12%, transparent) 0%, transparent 55%),
+    radial-gradient(45% 35% at 50% 110%, color-mix(in oklch, var(--primary) 10%, transparent) 0%, transparent 60%);
+}
+
+/* Grain overlay — adds tactile texture. SVG noise filter at low opacity. */
+.bg-grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 240px;
+  mix-blend-mode: overlay;
+}
+
+/* Pull-quote treatment — used for the interviewer's question.
+   Editorial serif italic + drop-cap-style oversize quotation mark. */
+.pull-quote {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.pull-quote-mark {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+  color: color-mix(in oklch, var(--primary) 60%, transparent);
+  user-select: none;
+  line-height: 0.8;
+}
+
+/* Hairline rule used to separate editorial sections inside a card. */
+.editorial-rule {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--border) 18%,
+    var(--border) 82%,
+    transparent 100%
+  );
+}
+
+/* ---------------------------------------------------------------
+   Session timeline — signature element. A vertical strip of nodes
+   showing each question's progress. Used on the drill page.
+   --------------------------------------------------------------- */
+.timeline-node {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  transition:
+    background-color 220ms var(--ease-out),
+    transform 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+.timeline-node[data-state="active"] {
+  background: var(--primary);
+  transform: scale(1.4);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 20%, transparent);
+}
+.timeline-node[data-state="done"] {
+  background: color-mix(in oklch, var(--primary) 60%, var(--border));
 }
 
 /* ---------------------------------------------------------------

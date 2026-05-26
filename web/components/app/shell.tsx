@@ -189,18 +189,27 @@ export function PageHeader({
   title,
   subtitle,
   action,
+  eyebrow,
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  eyebrow?: string;
 }) {
   return (
-    <div className="border-b border-[var(--border)] sticky top-14 md:top-0 z-20 bg-background/80 backdrop-blur-xl">
-      <div className="px-4 sm:px-6 md:px-8 h-14 sm:h-16 flex items-center justify-between gap-3">
+    <div className="border-b border-[var(--border)] sticky top-14 md:top-0 z-20 bg-background/70 backdrop-blur-xl">
+      <div className="px-4 sm:px-6 md:px-8 py-3 sm:py-4 flex items-end justify-between gap-3 min-h-14 sm:min-h-16">
         <div className="min-w-0">
-          <h1 className="text-base sm:text-lg font-semibold tracking-[-0.015em] truncate">{title}</h1>
+          {eyebrow && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-0.5">
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="text-lg sm:text-xl font-semibold tracking-[-0.02em] truncate leading-tight">
+            {title}
+          </h1>
           {subtitle && (
-            <p className="text-[11px] sm:text-xs text-[var(--muted-foreground)] truncate">
+            <p className="text-[11px] sm:text-xs text-[var(--muted-foreground)] truncate mt-0.5">
               {subtitle}
             </p>
           )}

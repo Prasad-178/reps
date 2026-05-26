@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -15,6 +15,16 @@ const jetbrains = JetBrains_Mono({
   display: "swap",
 });
 
+// Editorial accent — used for interviewer voice, signature moments, and pull
+// quotes. Distinctive italic serif, characterful but legible.
+const instrument = Instrument_Serif({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "reps — personalized interview rehearsal",
   description:
@@ -27,10 +37,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${inter.variable} ${jetbrains.variable}`}
+      className={`dark ${inter.variable} ${jetbrains.variable} ${instrument.variable}`}
       suppressHydrationWarning
     >
-      <body className="font-sans antialiased min-h-screen bg-background text-foreground">
+      <body className="font-sans antialiased min-h-screen bg-background text-foreground bg-grain">
+        <div className="bg-atmosphere" aria-hidden />
         {children}
         <Toaster
           theme="dark"
