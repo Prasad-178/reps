@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-SHELL := /bin/bash
+SHELL := /bin/zsh
 
 REPS_BIN := ./bin/reps
 BACKEND_ADDR ?= :7777

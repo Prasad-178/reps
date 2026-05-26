@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -49,18 +50,15 @@ type StepDecision struct {
 }
 
 // OpeningStream streams the opening question text token-by-token via onToken.
-// Returns the full text and a synthesized probe target on completion. This
-// variant uses plain-text completion (no JSON wrapping) so the stream is
-// usable directly in a typewriter UI.
+// Uses a dedicated plain-text system prompt — no JSON wrapping — so the
+// stream is directly displayable in a typewriter UI. Defensively extracts
+// the question text if the model still leaks JSON.
 func (iv *Interviewer) OpeningStream(ctx context.Context, in InterviewerInput, onToken func(string)) (string, string, error) {
-	user := buildInterviewerOpeningPrompt(in) +
-		"\n\nReturn ONLY the question text addressed to the candidate. " +
-		"No JSON, no preface, no labels — the question itself. " +
-		"End with a clear time cue (e.g. 'you have about 5 minutes')."
+	user := buildInterviewerOpeningPrompt(in)
 	req := llm.ChatRequest{
 		Model: iv.Client.Model,
 		Messages: []llm.Message{
-			{Role: "system", Content: interviewerSystemPrompt + "\n\nNOTE: Plain-text-only output mode."},
+			{Role: "system", Content: interviewerOpeningStreamSystemPrompt},
 			{Role: "user", Content: user},
 		},
 		Temperature: 0.75,
@@ -70,11 +68,29 @@ func (iv *Interviewer) OpeningStream(ctx context.Context, in InterviewerInput, o
 	if err != nil {
 		return "", "", err
 	}
-	text := strings.TrimSpace(full)
+	text := extractQuestionText(full)
 	if text == "" {
 		return "", "", fmt.Errorf("interviewer returned empty question")
 	}
 	return text, in.Decision.Topic, nil
+}
+
+// extractQuestionText handles both clean plain-text and JSON-leak fallback
+// cases. If the response looks like `{"action":"ask","text":"..."}`, pull the
+// text field out. Otherwise strip code fences and return as-is.
+func extractQuestionText(s string) string {
+	t := strings.TrimSpace(s)
+	t = strings.TrimPrefix(t, "```json")
+	t = strings.TrimPrefix(t, "```")
+	t = strings.TrimSuffix(t, "```")
+	t = strings.TrimSpace(t)
+	if strings.HasPrefix(t, "{") && strings.Contains(t, `"text"`) {
+		var leak interviewerOut
+		if err := json.Unmarshal([]byte(t), &leak); err == nil && strings.TrimSpace(leak.Text) != "" {
+			return strings.TrimSpace(leak.Text)
+		}
+	}
+	return t
 }
 
 // Opening generates the first question for the drill. Returns the question
@@ -120,7 +136,7 @@ func (iv *Interviewer) Step(
 			{Role: "user", Content: user},
 		},
 		Temperature: 0.7,
-		MaxTokens:   400,
+		MaxTokens:   180,
 	}
 	var out interviewerOut
 	if _, err := iv.Client.ChatJSON(ctx, req, &out); err != nil {
@@ -213,6 +229,29 @@ func buildInterviewerOpeningPrompt(in InterviewerInput) string {
 	return sb.String()
 }
 
+const interviewerOpeningStreamSystemPrompt = `You are the Interviewer agent for "reps". You are running a real interview, not a school quiz.
+
+Voice: senior engineer at a top company. Direct, specific, pushes for depth. Does NOT softball. Does NOT explain the question excessively. Does NOT preface with pleasantries.
+
+Generate the OPENING question for this drill. The question MUST:
+- Reference the candidate's actual shipped work. Use the grounding context. Quote real specifics
+  (project names, numbers, tech) from the profile or chunks. Generic questions are forbidden.
+- Match the target_topic. Candidate should leave knowing what was being tested.
+- Calibrated to target_difficulty (higher ELO = more subtle, multi-step, edge-case heavy).
+- Answerable in roughly 3-5 minutes of speaking.
+- End with a clear "you have ~5 minutes" or similar time cue.
+
+Avoid:
+- Multi-part questions that read like a problem set. Ask ONE thing well.
+- Asking the candidate to write code. Theory-only.
+- Tipping your hand about what the "right" answer looks like.
+
+OUTPUT FORMAT — STRICT:
+- Plain text only. No JSON. No braces. No keys. No quotes around the question.
+- No labels like "Q:" or "Question:" or "Opening:".
+- No markdown code fences.
+- Just the question itself, addressed to the candidate in second person.`
+
 const interviewerSystemPrompt = `You are the Interviewer agent for "reps". You are running a real interview, not a school quiz.
 
 Voice: senior engineer at a top company. Direct, specific, pushes for depth. Does NOT softball. Does NOT explain the question excessively. Does NOT preface with pleasantries.
@@ -253,10 +292,19 @@ Follow-up rule (CRITICAL):
   return action="done" IMMEDIATELY. Do not pad with follow-ups for the sake of it.
 - Follow-ups exist to test whether the candidate actually understands the topic, not to fill turns.
 
+LENGTH (CRITICAL):
+- A follow-up is ONE short sentence. Two short sentences MAX, and only when truly needed.
+- Aim for ≤ 25 words. Never longer than the opening question.
+- No multi-part probes. No context-setting preamble. Just the probe.
+- Bad:  "You mentioned PQ-M8 and said it dropped latency. Walk me through exactly how product quantization
+        with M=8 changes the recall profile, and explain how you'd retune nprobe to recover the lost
+        recall while still meeting your 300ms SLA."  (too long, multi-part)
+- Good: "You said PQ-M8 drops latency — what's the recall hit, and how do you recover it?"
+
 Style:
 - Real interviewer voice. Terse. No softballs.
-- Probe one specific weakness per follow-up. Don't ask two things at once.
-- Reference the candidate's actual claim from the prior answer ("you said X — but how does that handle Y?").
+- Probe one specific weakness per follow-up.
+- Reference the candidate's actual claim ("you said X — how does that handle Y?").
 
 Output ONLY this JSON object:
 
